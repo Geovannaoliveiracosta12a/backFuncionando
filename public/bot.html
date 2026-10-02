@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+```
+<title>INVICTA | BOT</title>
+
+<link rel="stylesheet" href="./css/style.css">
+```
+
+</head>
+
+<body>
+
+```
+<header class="header">
+
+    <div class="logo">
+        INVICTA
+    </div>
+
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="./alarmes.html">Alarmes</a>
+        <a href="./monitoramento.html">Monitoramento</a>
+        <a href="./previsao.html">Previsão</a>
+        <a href="./bot.html">BOT</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <section class="page-header">
+
+        <span class="tag">
+            INTELIGÊNCIA DO INVICTA
+        </span>
+
+        <h1>
+            INVICTA BOT
+        </h1>
+
+        <p>
+            Assistente responsável por interpretar
+            os dados do sistema e apresentar uma análise
+            do risco de alagamento.
+        </p>
+
+    </section>
+
+    <section class="bot-grid">
+
+        <div class="bot-panel">
+
+            <div class="bot-header">
+
+                <div class="bot-icon">
+                    I
+                </div>
+
+                <div>
+
+                    <strong>
+                        INVICTA BOT
+                    </strong>
+
+                    <span>
+                        Sistema de análise
+                    </span>
+
+                </div>
+
+            </div>
+
+            <div
+                id="chat"
+                class="chat"
+            >
+
+                <div class="message bot-message">
+
+                    <strong>
+                        INVICTA BOT
+                    </strong>
+
+                    <p>
+                        Olá! Estou analisando os dados
+                        disponíveis do sistema.
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div class="chat-input">
+
+                <input
+                    type="text"
+                    id="pergunta"
+                    placeholder="Digite sua pergunta..."
+                >
+
+                <button
+                    id="enviarPergunta"
+                    class="button"
+                >
+                    Enviar
+                </button>
+
+            </div>
+
+        </div>
+
+        <div class="bot-analysis">
+
+            <span class="section-label">
+                ANÁLISE AUTOMÁTICA
+            </span>
+
+            <h2>
+                Situação atual
+            </h2>
+
+            <div class="analysis-card">
+
+                <span>
+                    Nível da água
+                </span>
+
+                <strong id="botNivel">
+                    --
+                </strong>
+
+            </div>
+
+            <div class="analysis-card">
+
+                <span>
+                    Velocidade
+                </span>
+
+                <strong id="botVelocidade">
+                    --
+                </strong>
+
+            </div>
+
+            <div class="analysis-card">
+
+                <span>
+                    Risco
+                </span>
+
+                <strong id="botRisco">
+                    AGUARDANDO
+                </strong>
+
+            </div>
+
+            <div class="analysis-card">
+
+                <span>
+                    Estimativa
+                </span>
+
+                <strong id="botEstimativa">
+                    --
+                </strong>
+
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/bot.js"></script>
+```
+
+</body>
+
+</html>

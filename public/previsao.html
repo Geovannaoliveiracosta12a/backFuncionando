@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+```
+<title>INVICTA | Previsão</title>
+
+<link rel="stylesheet" href="./css/style.css">
+```
+
+</head>
+
+<body>
+
+```
+<header class="header">
+
+    <div class="logo">
+        INVICTA
+    </div>
+
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="./alarmes.html">Alarmes</a>
+        <a href="./monitoramento.html">Monitoramento</a>
+        <a href="./previsao.html">Previsão</a>
+        <a href="./bot.html">BOT</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <section class="page-header">
+
+        <span class="tag">
+            ANÁLISE PREDITIVA
+        </span>
+
+        <h1>
+            Previsão de risco
+        </h1>
+
+        <p>
+            Análise das condições atuais do sistema,
+            evolução do nível da água e condições
+            meteorológicas.
+        </p>
+
+    </section>
+
+    <section class="prediction-grid">
+
+        <div class="card">
+
+            <span class="card-title">
+                RISCO ATUAL
+            </span>
+
+            <div
+                id="riscoAtual"
+                class="risk-value"
+            >
+                AGUARDANDO
+            </div>
+
+            <p id="descricaoRisco">
+                Aguardando dados suficientes
+                para realizar a análise.
+            </p>
+
+        </div>
+
+        <div class="card">
+
+            <span class="card-title">
+                NÍVEL ATUAL
+            </span>
+
+            <div class="card-value">
+
+                <strong id="nivelPrevisao">
+                    --
+                </strong>
+
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <span class="card-title">
+                VELOCIDADE DE SUBIDA
+            </span>
+
+            <div class="card-value">
+
+                <strong id="velocidadePrevisao">
+                    --
+                </strong>
+
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <span class="card-title">
+                TEMPO ESTIMADO
+            </span>
+
+            <div class="card-value">
+
+                <strong id="tempoPrevisao">
+                    --
+                </strong>
+
+            </div>
+
+        </div>
+
+    </section>
+
+    <section class="weather-section">
+
+        <div class="section-heading">
+
+            <div>
+                <span class="section-label">
+                    CONDIÇÕES METEOROLÓGICAS
+                </span>
+
+                <h2>
+                    Previsão do tempo
+                </h2>
+            </div>
+
+            <button
+                id="atualizarClima"
+                class="button"
+            >
+                Atualizar
+            </button>
+
+        </div>
+
+        <div
+            id="weatherContainer"
+            class="weather-grid"
+        >
+
+            <div class="empty-state">
+                Carregando informações meteorológicas...
+            </div>
+
+        </div>
+
+    </section>
+
+    <section class="prediction-explanation">
+
+        <span class="section-label">
+            COMO O SISTEMA ANALISA
+        </span>
+
+        <h2>
+            Análise de risco
+        </h2>
+
+        <p>
+            O sistema combina as leituras do sensor,
+            a velocidade de alteração do nível da água
+            e informações meteorológicas para identificar
+            condições que podem indicar aumento do risco
+            de alagamento.
+        </p>
+
+        <div class="analysis-items">
+
+            <div>
+                <strong>01</strong>
+                <span>
+                    Nível atual da água
+                </span>
+            </div>
+
+            <div>
+                <strong>02</strong>
+                <span>
+                    Velocidade de subida
+                </span>
+            </div>
+
+            <div>
+                <strong>03</strong>
+                <span>
+                    Condições meteorológicas
+                </span>
+            </div>
+
+            <div>
+                <strong>04</strong>
+                <span>
+                    Histórico das leituras
+                </span>
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<script src="./socket.io/socket.io.js"></script>
+<script src="./js/previsao.js"></script>
+```
+
+</body>
+
+</html>

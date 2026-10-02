@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+```
+<title>INVICTA | Monitoramento</title>
+
+<link rel="stylesheet" href="./css/style.css">
+```
+
+</head>
+
+<body>
+
+```
+<header class="header">
+
+    <div class="logo">
+        INVICTA
+    </div>
+
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="./alarmes.html">Alarmes</a>
+        <a href="./monitoramento.html">Monitoramento</a>
+        <a href="./previsao.html">Previsão</a>
+        <a href="./bot.html">BOT</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <section class="page-header">
+
+        <span class="tag">
+            MONITORAMENTO EM TEMPO REAL
+        </span>
+
+        <h1>
+            Nível da água
+        </h1>
+
+        <p>
+            Acompanhe a evolução das leituras enviadas
+            pelo ESP32.
+        </p>
+
+    </section>
+
+    <section class="monitor-grid">
+
+        <div class="card monitor-main">
+
+            <span class="card-title">
+                NÍVEL ATUAL
+            </span>
+
+            <div class="large-value">
+                <span id="nivelAtual">
+                    --
+                </span>
+            </div>
+
+            <div
+                id="statusAtual"
+                class="status-badge"
+            >
+                AGUARDANDO
+            </div>
+
+            <p id="dataLeitura">
+                Nenhuma leitura recebida.
+            </p>
+
+        </div>
+
+        <div class="card">
+
+            <span class="card-title">
+                VELOCIDADE
+            </span>
+
+            <div class="card-value">
+                <strong id="velocidadeAtual">
+                    --
+                </strong>
+            </div>
+
+            <p>
+                Variação aproximada do nível
+                por minuto.
+            </p>
+
+        </div>
+
+        <div class="card">
+
+            <span class="card-title">
+                ESTIMATIVA
+            </span>
+
+            <div class="card-value">
+                <strong id="tempoEstimado">
+                    --
+                </strong>
+            </div>
+
+            <p>
+                Tempo estimado para atingir
+                o nível crítico.
+            </p>
+
+        </div>
+
+    </section>
+
+    <section class="chart-section">
+
+        <div class="section-heading">
+
+            <div>
+                <span class="section-label">
+                    HISTÓRICO
+                </span>
+
+                <h2>
+                    Evolução do nível
+                </h2>
+            </div>
+
+            <button
+                id="atualizarMonitoramento"
+                class="button"
+            >
+                Atualizar
+            </button>
+
+        </div>
+
+        <div class="chart-container">
+
+            <canvas id="graficoNivel"></canvas>
+
+        </div>
+
+    </section>
+
+    <section class="readings-section">
+
+        <span class="section-label">
+            ÚLTIMAS LEITURAS
+        </span>
+
+        <h2>
+            Dados recebidos
+        </h2>
+
+        <div
+            id="ultimasLeituras"
+            class="readings-list"
+        >
+
+            <div class="empty-state">
+                Aguardando leituras...
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="./socket.io/socket.io.js"></script>
+<script src="./js/monitoramento.js"></script>
+```
+
+</body>
+
+</html>

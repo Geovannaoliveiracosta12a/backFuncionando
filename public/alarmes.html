@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+
+<title>INVICTA | Alarmes</title>
+
+<link rel="stylesheet" href="./css/style.css">
+
+
+</head>
+
+<body>
+
+
+<header class="header">
+
+    <div class="logo">
+        INVICTA
+    </div>
+
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="./alarmes.html">Alarmes</a>
+        <a href="./monitoramento.html">Monitoramento</a>
+        <a href="./previsao.html">Previsão</a>
+        <a href="./bot.html">BOT</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <section class="page-header">
+
+        <span class="tag">
+            CENTRAL DE ALERTAS
+        </span>
+
+        <h1>
+            Histórico de alarmes
+        </h1>
+
+        <p>
+            Registro dos alertas identificados pelo sistema
+            de monitoramento.
+        </p>
+
+    </section>
+
+    <section class="alarm-summary">
+
+        <div class="card">
+            <span class="card-title">
+                TOTAL
+            </span>
+
+            <div class="card-value">
+                <strong id="totalAlarmes">0</strong>
+            </div>
+        </div>
+
+        <div class="card">
+            <span class="card-title">
+                ATENÇÃO
+            </span>
+
+            <div class="card-value">
+                <strong id="totalAtencao">0</strong>
+            </div>
+        </div>
+
+        <div class="card">
+            <span class="card-title">
+                PERIGO
+            </span>
+
+            <div class="card-value">
+                <strong id="totalPerigo">0</strong>
+            </div>
+        </div>
+
+    </section>
+
+    <section class="alarm-section">
+
+        <div class="section-heading">
+
+            <div>
+                <span class="section-label">
+                    REGISTROS
+                </span>
+
+                <h2>
+                    Alarmes registrados
+                </h2>
+            </div>
+
+            <button
+                id="atualizarAlarmes"
+                class="button"
+            >
+                Atualizar
+            </button>
+
+        </div>
+
+        <div
+            id="listaAlarmes"
+            class="alarm-list"
+        >
+
+            <div class="empty-state">
+                Nenhum alarme registrado.
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<script src="./socket.io/socket.io.js"></script>
+<script src="./js/alarmes.js"></script>
+
+
+</body>
+
+</html>

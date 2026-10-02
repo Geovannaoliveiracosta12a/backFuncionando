@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+
+<title>INVICTA | Monitoramento</title>
+
+<link rel="stylesheet" href="./css/style.css">
+
+
+</head>
+
+<body>
+
+
+<header class="header">
+
+    <div class="logo">
+        INVICTA
+    </div>
+
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="./alarmes.html">Alarmes</a>
+        <a href="./monitoramento.html">Monitoramento</a>
+        <a href="./previsao.html">Previsão</a>
+        <a href="./bot.html">BOT</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <section class="hero">
+
+        <span class="tag">
+            SISTEMA INTELIGENTE DE MONITORAMENTO
+        </span>
+
+        <h1>
+            Prevenindo enchentes com tecnologia inteligente.
+        </h1>
+
+        <p>
+            O INVICTA monitora o nível da água em tempo real,
+            analisa sua evolução e gera alertas automaticamente.
+        </p>
+
+    </section>
+
+    <section class="dashboard-grid">
+
+        <article class="card">
+
+            <span class="card-title">
+                NÍVEL ATUAL
+            </span>
+
+            <div class="card-value">
+                <strong id="nivel">--</strong>
+            </div>
+
+            <span class="card-description">
+                Valor recebido pelo ESP32
+            </span>
+
+        </article>
+
+        <article class="card">
+
+            <span class="card-title">
+                VELOCIDADE DA ÁGUA
+            </span>
+
+            <div class="card-value">
+                <strong id="velocidade">--</strong>
+            </div>
+
+            <span class="card-description">
+                unidades por minuto
+            </span>
+
+        </article>
+
+        <article class="card">
+
+            <span class="card-title">
+                SITUAÇÃO
+            </span>
+
+            <div class="card-value">
+                <strong id="status">
+                    AGUARDANDO
+                </strong>
+            </div>
+
+            <span class="card-description">
+                Status atual do monitoramento
+            </span>
+
+        </article>
+
+        <article class="card">
+
+            <span class="card-title">
+                ESTIMATIVA
+            </span>
+
+            <div class="card-value">
+                <strong id="estimativa">--</strong>
+            </div>
+
+            <span class="card-description">
+                Tempo estimado até o nível crítico
+            </span>
+
+        </article>
+
+    </section>
+
+    <section class="system-status">
+
+        <div>
+
+            <span class="section-label">
+                MONITORAMENTO EM TEMPO REAL
+            </span>
+
+            <h2>
+                Sistema conectado
+            </h2>
+
+            <p id="ultima">
+                Aguardando dados do ESP32...
+            </p>
+
+        </div>
+
+        <div
+            id="conexao"
+            class="connection offline"
+        >
+            ● Aguardando conexão
+        </div>
+
+    </section>
+
+    <section class="quick-access">
+
+        <a href="/alarmes.html" class="access-card">
+
+            <span>01</span>
+
+            <h3>
+                Histórico de alarmes
+            </h3>
+
+            <p>
+                Consulte todos os alertas registrados
+                pelo sistema.
+            </p>
+
+        </a>
+
+        <a href="/monitoramento.html" class="access-card">
+
+            <span>02</span>
+
+            <h3>
+                Monitoramento
+            </h3>
+
+            <p>
+                Acompanhe a evolução do nível da água.
+            </p>
+
+        </a>
+
+        <a href="/previsao.html" class="access-card">
+
+            <span>03</span>
+
+            <h3>
+                Previsão de risco
+            </h3>
+
+            <p>
+                Analise as condições atuais e futuras.
+            </p>
+
+        </a>
+
+        <a href="/bot.html" class="access-card">
+
+            <span>04</span>
+
+            <h3>
+                INVICTA BOT
+            </h3>
+
+            <p>
+                Consulte o sistema através do assistente
+                inteligente.
+            </p>
+
+        </a>
+
+    </section>
+
+</main>
+
+<script src="./socket.io/socket.io.js"></script>
+<script src="./js/app.js"></script>
+
+
+</body>
+
+</html>
