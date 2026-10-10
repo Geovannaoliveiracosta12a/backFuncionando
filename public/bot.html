@@ -22,6 +22,7 @@
 
     <nav class="nav">
         <a href="/">Dashboard</a>
+        <a href="./obstrucao.html">Obstrução</a>
         <a href="./alarmes.html">Alarmes</a>
         <a href="./monitoramento.html">Monitoramento</a>
         <a href="./previsao.html">Previsão</a>
@@ -43,9 +44,13 @@
         </h1>
 
         <p>
-            Assistente responsável por interpretar
-            os dados do sistema e apresentar uma análise
-            do risco de alagamento.
+            Assistente do sistema: responde sobre as leituras,
+            tendências, alarmes e obstruções usando os dados
+            disponíveis no backend, sem inventar medições.
+        </p>
+        <p>
+            As respostas são produzidas por regras locais; nenhum modelo
+            generativo externo está conectado a esta instalação.
         </p>
 
     </section>
@@ -67,7 +72,7 @@
                     </strong>
 
                     <span>
-                        Sistema de análise
+                        Respostas baseadas no monitoramento
                     </span>
 
                 </div>
@@ -77,6 +82,8 @@
             <div
                 id="chat"
                 class="chat"
+                aria-live="polite"
+                aria-label="Conversa com o assistente INVICTA"
             >
 
                 <div class="message bot-message">
@@ -86,8 +93,8 @@
                     </strong>
 
                     <p>
-                        Olá! Estou analisando os dados
-                        disponíveis do sistema.
+                        Olá! Posso consultar nível, risco, tendência,
+                        estimativa, alarmes, obstrução e estado do sensor.
                     </p>
 
                 </div>
@@ -100,6 +107,9 @@
                     type="text"
                     id="pergunta"
                     placeholder="Digite sua pergunta..."
+                    maxlength="500"
+                    autocomplete="off"
+                    aria-label="Sua pergunta"
                 >
 
                 <button
@@ -171,14 +181,30 @@
 
             </div>
 
+            <div class="analysis-card">
+
+                <span>
+                    Diagnóstico do sensor
+                </span>
+
+                <strong id="botSensor">
+                    --
+                </strong>
+
+                <p id="botSensorMensagem">
+                    Aguardando diagnóstico do backend.
+                </p>
+
+            </div>
+
         </div>
 
     </section>
 
 </main>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="/js/bot.js"></script>
+<script src="./js/live-server-config.js"></script>
+<script src="./js/bot.js"></script>
 
 </body>
 

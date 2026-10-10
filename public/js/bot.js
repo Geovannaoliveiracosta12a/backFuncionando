@@ -1,322 +1,151 @@
 // =========================================================
 // INVICTA
 // bot.js
-// Assistente inteligente
+// Assistente baseado nos dados do monitoramento
 // =========================================================
 
-const chat =
-    document.getElementById(
-        "chat"
-    );
+const chat = document.getElementById("chat");
+const pergunta = document.getElementById("pergunta");
+const enviarPergunta = document.getElementById("enviarPergunta");
+const botNivel = document.getElementById("botNivel");
+const botVelocidade = document.getElementById("botVelocidade");
+const botRisco = document.getElementById("botRisco");
+const botEstimativa = document.getElementById("botEstimativa");
+const botSensor = document.getElementById("botSensor");
+const botSensorMensagem = document.getElementById("botSensorMensagem");
 
-const pergunta =
-    document.getElementById(
-        "pergunta"
-    );
-
-const enviarPergunta =
-    document.getElementById(
-        "enviarPergunta"
-    );
-
-const botNivel =
-    document.getElementById(
-        "botNivel"
-    );
-
-const botVelocidade =
-    document.getElementById(
-        "botVelocidade"
-    );
-
-const botRisco =
-    document.getElementById(
-        "botRisco"
-    );
-
-const botEstimativa =
-    document.getElementById(
-        "botEstimativa"
-    );
-
-
-// =========================================================
-// ADICIONAR MENSAGEM
-// =========================================================
-
-function adicionarMensagem(
-    texto,
-    tipo
-) {
-
-    const mensagem =
-        document.createElement(
-            "div"
-        );
-
-    mensagem.classList.add(
-        "message"
-    );
-
-    if (tipo === "usuario") {
-
-        mensagem.classList.add(
-            "user-message"
-        );
-
-        mensagem.innerHTML = `
-            <strong>
-                VOCÊ
-            </strong>
-
-            <p>
-                ${texto}
-            </p>
-        `;
-
-    } else {
-
-        mensagem.classList.add(
-            "bot-message"
-        );
-
-        mensagem.innerHTML = `
-            <strong>
-                INVICTA BOT
-            </strong>
-
-            <p>
-                ${texto}
-            </p>
-        `;
-    }
-
-
-    chat.appendChild(
-        mensagem
-    );
-
-
-    chat.scrollTop =
-        chat.scrollHeight;
-}
-
-
-// =========================================================
-// CARREGAR ANÁLISE
-// =========================================================
-
-async function carregarAnalise() {
-
-    try {
-
-        const resposta =
-            await fetch(
-                "/api/risco"
-            );
-
-
-        if (!resposta.ok) {
-            throw new Error(
-                "Erro ao buscar análise."
-            );
-        }
-
-
-        const dados =
-            await resposta.json();
-
-
-        botNivel.textContent =
-            dados.nivel ?? "--";
-
-
-        botVelocidade.textContent =
-            dados.velocidade !==
-            undefined
-                ? Number(
-                    dados.velocidade
-                ).toFixed(2)
-                : "--";
-
-
-        botRisco.textContent =
-            dados.risco ||
-            dados.status ||
-            "AGUARDANDO";
-
-
-        botEstimativa.textContent =
-            dados.mensagem ||
-            (
-                dados.minutos !==
-                undefined
-                    ? `${Number(
-                        dados.minutos
-                    ).toFixed(0)} min`
-                    : "--"
-            );
-
-    } catch (erro) {
-
-        console.error(erro);
-
-        botNivel.textContent =
-            "--";
-
-        botVelocidade.textContent =
-            "--";
-
-        botRisco.textContent =
-            "INDISPONÍVEL";
-
-        botEstimativa.textContent =
-            "--";
-    }
-}
-
-
-// =========================================================
-// ENVIAR PERGUNTA AO BOT
-// =========================================================
-
-async function enviarMensagem() {
-
-    const texto =
-        pergunta.value.trim();
-
-
-    if (!texto) {
+function adicionarMensagem(texto, tipo) {
+    if (!chat) {
         return;
     }
 
+    const mensagem = document.createElement("div");
+    mensagem.className = `message ${tipo === "usuario" ? "user-message" : "bot-message"}`;
 
-    adicionarMensagem(
-        texto,
-        "usuario"
-    );
+    const autor = document.createElement("strong");
+    autor.textContent = tipo === "usuario" ? "VOCÊ" : "INVICTA BOT";
 
+    const conteudo = document.createElement("p");
+    conteudo.textContent = texto;
 
+    mensagem.append(autor, conteudo);
+    chat.append(mensagem);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+async function carregarAnalise() {
+    try {
+        const [respostaRisco, respostaSensor] = await Promise.all([
+            fetch("/api/risco"),
+            fetch("/api/diagnostico/sensor-nivel")
+        ]);
+
+        if (!respostaRisco.ok || !respostaSensor.ok) {
+            throw new Error("Erro ao buscar a análise do sistema.");
+        }
+
+        const [risco, sensor] = await Promise.all([
+            respostaRisco.json(),
+            respostaSensor.json()
+        ]);
+
+        if (botNivel) {
+            botNivel.textContent = risco.nivel ?? "--";
+        }
+        if (botVelocidade) {
+            botVelocidade.textContent =
+                risco.velocidade !== undefined
+                    ? Number(risco.velocidade).toFixed(2)
+                    : "--";
+        }
+        if (botRisco) {
+            botRisco.textContent =
+                risco.risco || risco.status || "AGUARDANDO";
+        }
+        if (botEstimativa) {
+            botEstimativa.textContent =
+                risco.mensagem ||
+                (risco.minutos !== undefined && risco.minutos !== null
+                    ? `${Number(risco.minutos).toFixed(0)} min`
+                    : "--");
+        }
+        if (botSensor) {
+            botSensor.textContent = sensor.status || "INDISPONÍVEL";
+        }
+        if (botSensorMensagem) {
+            botSensorMensagem.textContent =
+                sensor.mensagem || "Diagnóstico indisponível.";
+        }
+    } catch (erro) {
+        console.error(erro);
+        if (botNivel) botNivel.textContent = "--";
+        if (botVelocidade) botVelocidade.textContent = "--";
+        if (botRisco) botRisco.textContent = "INDISPONÍVEL";
+        if (botEstimativa) botEstimativa.textContent = "--";
+        if (botSensor) botSensor.textContent = "INDISPONÍVEL";
+        if (botSensorMensagem) {
+            botSensorMensagem.textContent =
+                "Não foi possível consultar o backend.";
+        }
+    }
+}
+
+async function enviarMensagem() {
+    const texto = pergunta?.value.trim();
+    if (!texto || !enviarPergunta || enviarPergunta.disabled) {
+        return;
+    }
+
+    adicionarMensagem(texto, "usuario");
     pergunta.value = "";
-
+    enviarPergunta.disabled = true;
 
     try {
+        const resposta = await fetch("/api/bot", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pergunta: texto })
+        });
 
-        const resposta =
-            await fetch(
-                "/api/bot",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        pergunta: texto
-                    })
-                }
-            );
-
-
+        const dados = await resposta.json();
         if (!resposta.ok) {
-            throw new Error(
-                "Erro ao consultar o BOT."
-            );
+            throw new Error(dados.erro || "Erro ao consultar o assistente.");
         }
 
-
-        const dados =
-            await resposta.json();
-
-
         adicionarMensagem(
-            dados.resposta ||
-            dados.mensagem ||
-            "Não foi possível gerar uma resposta.",
+            dados.resposta || "Não foi possível responder com os dados disponíveis.",
             "bot"
         );
-
-
-        carregarAnalise();
-
+        await carregarAnalise();
     } catch (erro) {
-
         console.error(erro);
-
         adicionarMensagem(
-            "Não consegui consultar o sistema agora. Verifique a conexão com o backend.",
+            erro.message || "Não consegui consultar o sistema. Verifique a conexão com o backend.",
             "bot"
         );
+    } finally {
+        enviarPergunta.disabled = false;
+        pergunta?.focus();
     }
 }
-
-
-// =========================================================
-// BOTÃO ENVIAR
-// =========================================================
 
 if (enviarPergunta) {
-
-    enviarPergunta.addEventListener(
-        "click",
-        enviarMensagem
-    );
+    enviarPergunta.addEventListener("click", enviarMensagem);
 }
-
-
-// =========================================================
-// ENTER
-// =========================================================
 
 if (pergunta) {
-
-    pergunta.addEventListener(
-        "keydown",
-        (evento) => {
-
-            if (
-                evento.key ===
-                "Enter"
-            ) {
-
-                enviarMensagem();
-            }
+    pergunta.addEventListener("keydown", (evento) => {
+        if (evento.key === "Enter") {
+            evento.preventDefault();
+            enviarMensagem();
         }
-    );
+    });
 }
 
+const socket = io(window.API_BASE || undefined);
+socket.on("novaLeitura", carregarAnalise);
 
-// =========================================================
-// SOCKET.IO
-// =========================================================
-
-const socket =
-    io();
-
-socket.on(
-    "novaLeitura",
-    () => {
-
-        carregarAnalise();
-    }
-);
-
-
-// =========================================================
-// INICIALIZAÇÃO
-// =========================================================
-
-document.addEventListener(
-    "DOMContentLoaded",
-    () => {
-
-        carregarAnalise();
-
-        setInterval(
-            carregarAnalise,
-            10000
-        );
-    }
-);
+document.addEventListener("DOMContentLoaded", () => {
+    carregarAnalise();
+    setInterval(carregarAnalise, 10000);
+});

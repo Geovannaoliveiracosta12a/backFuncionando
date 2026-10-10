@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>INVICTA | Obstrução</title>
+
+    <link rel="stylesheet" href="./css/style.css">
+
+</head>
+
+<body>
+
+<header class="header">
+
+    <div class="logo">
+        INVICTA
+    </div>
+
+    <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="./obstrucao.html">Obstrução</a>
+        <a href="./alarmes.html">Alarmes</a>
+        <a href="./monitoramento.html">Monitoramento</a>
+        <a href="./previsao.html">Previsão</a>
+        <a href="./bot.html">BOT</a>
+    </nav>
+
+</header>
+
+<main>
+
+    <section class="page-header">
+
+        <span class="tag">
+            MONITORAMENTO DE OBSTRUÇÃO
+        </span>
+
+        <h1>
+            Alertas de obstrução
+        </h1>
+
+        <p>
+            Acompanhe em tempo real o estado do tubo de
+            drenagem e o histórico de obstruções (lixo)
+            detectadas pelo sensor ultrassônico.
+        </p>
+
+    </section>
+
+    <section class="monitor-grid">
+
+        <div class="card monitor-main">
+
+            <span class="card-title">
+                ESTADO ATUAL
+            </span>
+
+            <div class="large-value">
+                <span id="estadoAtual">
+                    --
+                </span>
+            </div>
+
+            <div
+                id="statusAtual"
+                class="status-badge"
+            >
+                AGUARDANDO
+            </div>
+
+            <p>
+                Distância do lixo:
+                <strong id="distanciaAtual">
+                    --
+                </strong>
+                cm
+            </p>
+
+            <p id="dataLeitura">
+                Nenhuma leitura recebida.
+            </p>
+
+        </div>
+
+        <div class="card">
+
+            <span class="card-title">
+                TOTAL DE ALERTAS
+            </span>
+
+            <div class="card-value">
+                <strong id="totalObstrucoes">
+                    0
+                </strong>
+            </div>
+
+            <p>
+                Obstruções registradas
+                no sistema.
+            </p>
+
+        </div>
+
+        <div class="card">
+
+            <span class="card-title">
+                ÚLTIMAS 24H
+            </span>
+
+            <div class="card-value">
+                <strong id="total24h">
+                    0
+                </strong>
+            </div>
+
+            <p>
+                Alertas nas últimas
+                24 horas.
+            </p>
+
+        </div>
+
+    </section>
+
+    <section class="alarm-section">
+
+        <div class="section-heading">
+
+            <div>
+                <span class="section-label">
+                    HISTÓRICO
+                </span>
+
+                <h2>
+                    Obstruções registradas
+                </h2>
+            </div>
+
+            <button
+                id="atualizarObstrucao"
+                class="button"
+            >
+                Atualizar
+            </button>
+
+        </div>
+
+        <div
+            id="listaObstrucoes"
+            class="alarm-list"
+        >
+
+            <div class="empty-state">
+                Nenhuma obstrução registrada.
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<script src="./js/live-server-config.js"></script>
+<script src="./js/obstrucao.js"></script>
+
+</body>
+
+</html>

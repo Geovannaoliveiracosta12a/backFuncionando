@@ -42,6 +42,19 @@ const MAX_ALARMES = Number(
     process.env.MAX_ALARMES || 500
 );
 
+// Intervalo (ms) para RE-avisar uma obstrução que continua ativa.
+// Evita flood no histórico: cria alerta na transição e repete a cada
+// este tempo enquanto a obstrução persistir.
+const OBSTRUCAO_REALERTA_MS = Number(
+    process.env.OBSTRUCAO_REALERTA_MS || 1 * 60 * 1000
+);
+
+// Quantas leituras zeradas seguidas indicam falha do sensor de nível
+// no diagnóstico (usado pela rota /api/diagnostico/sensor-nivel).
+const DIAG_AMOSTRAS = Number(
+    process.env.DIAG_AMOSTRAS || 50
+);
+
 const DATA_DIR = path.join(__dirname, "data");
 const PUBLIC_DIR = path.join(__dirname, "public");
 
@@ -111,36 +124,14 @@ if (!fs.existsSync(DATA_DIR)) {
 // ======================================================
 
 function lerArquivo(caminho) {
-
-    try {
-
-        if (
-            caminho ===
-            LEITURAS_FILE
-        ) {
-
-            return database.listarLeituras();
-        }
-
-        if (
-            caminho ===
-            ALARMES_FILE
-        ) {
-
-            return database.listarAlarmes();
-        }
-
-        return [];
-
-    } catch (erro) {
-
-        console.error(
-            "Erro ao ler banco:",
-            erro.message
-        );
-
-        return [];
+    if (caminho === LEITURAS_FILE) {
+        return database.listarLeituras();
     }
+    if (caminho === ALARMES_FILE) {
+        return database.listarAlarmes();
+    }
+
+    throw new Error("Arquivo de dados não reconhecido.");
 }
 
 
@@ -181,6 +172,8 @@ function salvarArquivo(
 
         return;
     }
+
+    throw new Error("Arquivo de dados não reconhecido.");
 }
 
 
@@ -612,7 +605,9 @@ function gerarAlarme(
 
 
     const ultimo =
-        database.ultimoAlarme();
+        database.ultimoAlarmeDoTipo(
+            classificacao.nivel
+        );
 
 
     const mesmoTipo =
@@ -646,7 +641,7 @@ function gerarAlarme(
 
     const alarme = {
 
-        id: Date.now(),
+        id: database.proximoId("alarmes"),
 
         tipo:
             classificacao.nivel,
@@ -703,6 +698,148 @@ function gerarAlarme(
 
 
 // ======================================================
+// GERAR ALARME DE OBSTRUÇÃO (LIXO)
+// ======================================================
+// Criado sempre que uma leitura chega com statusLixo === "OBSTRUCAO".
+// Throttle: gera na TRANSIÇÃO (último alarme não é obstrução) e re-alerta
+// a cada OBSTRUCAO_REALERTA_MS enquanto persistir. Assim o histórico não
+// é inundado com um alerta por leitura (o ESP32 envia a cada ~10s).
+
+function gerarAlarmeObstrucao(
+    leitura,
+    statusAnterior
+) {
+
+    const statusLixo =
+        String(
+            leitura.statusLixo || ""
+        ).toUpperCase();
+
+
+    if (
+        statusLixo !==
+        "OBSTRUCAO"
+    ) {
+
+        return null;
+    }
+
+
+    const ultimaObstrucao =
+        database.ultimoAlarmeDoTipo("OBSTRUCAO");
+
+
+    const agora =
+        new Date(
+            leitura.timestamp
+        ).getTime();
+
+
+    const transicaoParaObstrucao =
+        String(statusAnterior || "").toUpperCase() !== "OBSTRUCAO";
+
+    if (!transicaoParaObstrucao && ultimaObstrucao) {
+        const tempoUltimo =
+            new Date(
+                ultimaObstrucao.timestamp
+            ).getTime();
+
+
+        // Re-alerta somente depois do intervalo configurado.
+        if (
+            agora -
+                tempoUltimo <
+                OBSTRUCAO_REALERTA_MS
+        ) {
+
+            return null;
+        }
+    }
+
+
+    const distancia =
+        leitura.distanciaLixo;
+
+
+    const distanciaTexto =
+        (distancia === undefined ||
+            distancia === null)
+            ? "distancia indisponivel"
+            : `${Number(distancia).toFixed(2)} cm`;
+
+
+    const alarme = {
+
+        id: database.proximoId("alarmes"),
+
+        tipo:
+            "OBSTRUCAO",
+
+        status:
+            "OBSTRUCAO",
+
+        mensagem:
+            `Obstrucao detectada no tubo de drenagem. ` +
+            `Distancia do lixo: ${distanciaTexto}. ` +
+            `Nivel da agua no momento: ${leitura.valor}.`,
+
+        valor:
+            leitura.valor,
+
+        nivel:
+            leitura.valor,
+
+        gravidade:
+            3,
+
+        data:
+            dataBR(
+                leitura.timestamp
+            ),
+
+        hora:
+            horaBR(
+                leitura.timestamp
+            ),
+
+        timestamp:
+            leitura.timestamp,
+
+        distanciaLixo:
+            (distancia === undefined ||
+                distancia === null)
+                ? null
+                : Number(distancia)
+    };
+
+
+    database.inserirAlarme(
+        alarme
+    );
+
+    database.limparExcedente(
+        "alarmes",
+        MAX_ALARMES
+    );
+
+
+    io.emit(
+        "novoAlarmeObstrucao",
+        alarme
+    );
+
+
+    console.log(
+        "[ALERTA OBSTRUCAO]",
+        alarme.mensagem
+    );
+
+
+    return alarme;
+}
+
+
+// ======================================================
 // PROCESSAR LEITURA DO ESP32
 // ======================================================
 
@@ -728,6 +865,9 @@ function processarLeitura(
     const timestamp =
         new Date().toISOString();
 
+    const leituraAnterior =
+        database.ultimaLeitura();
+
 
     const classificacao =
         classificarNivel(
@@ -737,7 +877,7 @@ function processarLeitura(
 
     const leitura = {
 
-        id: Date.now(),
+        id: database.proximoId("leituras"),
 
         valor,
 
@@ -763,13 +903,24 @@ function processarLeitura(
             horaBR(timestamp),
 
         statusLixo:
-            extras?.statusLixo ?? null,
+            ["NORMAL", "OBSTRUCAO", "INDETERMINADO"].includes(
+                String(extras?.statusLixo || "").toUpperCase()
+            )
+                ? String(extras.statusLixo).toUpperCase()
+                : null,
 
         distanciaLixo:
-            (extras?.distanciaLixo === undefined ||
-             extras?.distanciaLixo === null)
-                ? null
-                : Number(extras.distanciaLixo)
+            Number.isFinite(Number(extras?.distanciaLixo)) &&
+            Number(extras?.distanciaLixo) > 0
+                ? Number(extras.distanciaLixo)
+                : null,
+
+        fonteNivel:
+            ["REAL", "SIMULADO", "TESTE"].includes(
+                String(extras?.fonteNivel || "").toUpperCase()
+            )
+                ? String(extras.fonteNivel).toUpperCase()
+                : "NAO_INFORMADA"
     };
 
 
@@ -792,6 +943,15 @@ function processarLeitura(
         );
 
 
+    // Alerta de obstrução (lixo), independente do nível da água.
+    // Gerencia o próprio throttle (transição + re-alerta periódico).
+    const alarmeObstrucao =
+        gerarAlarmeObstrucao(
+            leitura,
+            leituraAnterior?.statusLixo
+        );
+
+
     const velocidade =
         calcularVelocidade();
 
@@ -805,6 +965,8 @@ function processarLeitura(
         leitura,
 
         alarme,
+
+        alarmeObstrucao,
 
         velocidade,
 
@@ -830,6 +992,9 @@ function processarLeitura(
 
             distanciaLixo:
                 leitura.distanciaLixo,
+
+            fonteNivel:
+                leitura.fonteNivel,
 
             leitura,
 
@@ -985,180 +1150,188 @@ function obterRisco() {
 // BOT
 // ======================================================
 
+function normalizarTexto(texto) {
+    return String(texto || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+}
+
+function diagnosticarSensor() {
+    const leituras = database.listarLeituras();
+    const total = leituras.length;
+
+    if (total === 0) {
+        return {
+            disponivel: false,
+            status: "SEM_DADOS",
+            total: 0,
+            zeradas: 0,
+            percentualZeradas: 0,
+            minutosSemLeituraValida: null,
+            mensagem: "Ainda não existem leituras para analisar."
+        };
+    }
+
+    const amostra = leituras.slice(-DIAG_AMOSTRAS);
+    const zeradas = amostra.filter((leitura) =>
+        Number(leitura.valor) === 0
+    ).length;
+    const percentual = Number(
+        ((zeradas / amostra.length) * 100).toFixed(1)
+    );
+    const ultima = leituras[total - 1];
+    const idadeMs = Date.now() - new Date(ultima.timestamp).getTime();
+    const validas = leituras.filter((leitura) =>
+        Number(leitura.valor) > 0
+    );
+    const ultimaValida = validas[validas.length - 1] || null;
+    const idadeValidaMs = ultimaValida
+        ? Date.now() - new Date(ultimaValida.timestamp).getTime()
+        : NaN;
+    const fonteNivel = ultima.fonteNivel || "NAO_INFORMADA";
+
+    let status = "OK";
+    let mensagem = "O ESP32 está enviando leituras recentes.";
+
+    if (!Number.isFinite(idadeMs) || idadeMs > 60000) {
+        status = "SEM_ATUALIZACAO";
+        mensagem = "Não recebo uma leitura recente do ESP32 há mais de 1 minuto.";
+    } else if (fonteNivel === "SIMULADO" || fonteNivel === "TESTE") {
+        status = "SIMULADO";
+        mensagem = `A última leitura está marcada como ${fonteNivel}; ela não representa uma medição real.`;
+    } else if (amostra.length >= 3 && percentual >= 90) {
+        status = "SUSPEITO";
+        mensagem = "Quase todas as leituras recentes estão em zero. Isso pode ser a condição seca ou indicar problema de ligação/calibração; confirme no sensor físico.";
+    } else if (amostra.length >= 3 && percentual >= 50) {
+        status = "INSTAVEL";
+        mensagem = "Muitas leituras recentes estão em zero. Confira a conexão e a calibração do sensor.";
+    }
+
+    return {
+        disponivel: true,
+        status,
+        total,
+        amostraAnalisada: amostra.length,
+        zeradas,
+        percentualZeradas: percentual,
+        ultimaLeituraValida: ultimaValida
+            ? ultimaValida.timestamp
+            : null,
+        minutosSemLeituraValida: ultimaValida && Number.isFinite(idadeValidaMs)
+            ? Number((idadeValidaMs / 60000).toFixed(1))
+            : null,
+        ultimaLeitura: ultima.timestamp,
+        fonteNivel,
+        mensagem
+    };
+}
+
 function respostaBot(
     pergunta
 ) {
+    const texto = normalizarTexto(pergunta);
+    const ultima = database.ultimaLeitura();
+    const velocidade = calcularVelocidade();
+    const estimativa = calcularEstimativa();
+    const risco = obterRisco();
+    const diagnostico = diagnosticarSensor();
+    const alarmes = database.listarAlarmes();
+    const saudacao = /^(oi|ola|bom dia|boa tarde|boa noite)\b/.test(texto);
 
-    const texto =
-        String(
-            pergunta || ""
-        )
-        .trim()
-        .toLowerCase();
-
-
-    const leituras =
-        lerArquivo(
-            LEITURAS_FILE
-        );
-
-
-    if (
-        leituras.length === 0
-    ) {
-
+    if (saudacao) {
         return {
+            resposta: "Olá! Posso consultar o nível, a tendência, o risco, os alarmes, a obstrução e a comunicação do sensor com base nos dados recebidos pelo sistema.",
+            dados: ultima
+                ? { nivel: Number(ultima.valor), risco: risco.risco }
+                : null
+        };
+    }
 
-            resposta:
-                "Ainda não recebi dados suficientes do ESP32 para realizar uma análise.",
-
+    if (/\b(ajuda|o que voce faz|como funciona)\b/.test(texto)) {
+        return {
+            resposta: "Respondo perguntas sobre nível da água, velocidade/tendência, risco, estimativa, alarmes, obstrução e estado do sensor. Uso os dados do backend; não invento medições e aviso quando faltam dados.",
             dados: null
         };
     }
 
-
-    const ultima =
-        leituras[
-            leituras.length - 1
-        ];
-
-
-    const velocidade =
-        calcularVelocidade();
-
-
-    const estimativa =
-        calcularEstimativa();
-
-
-    const risco =
-        obterRisco();
-
-
-    if (
-
-        texto.includes("risco") ||
-
-        texto.includes("enchente") ||
-
-        texto.includes("alagamento")
-
-    ) {
-
+    if (/\b(obstrucao|obstruido|lixo|tubo|drenagem)\b/.test(texto)) {
+        if (!ultima) {
+            return { resposta: "Ainda não recebi leituras do ESP32 para verificar a obstrução.", dados: null };
+        }
+        const statusLixo = ultima.statusLixo || "INDETERMINADO";
+        const distancia = Number.isFinite(Number(ultima.distanciaLixo)) &&
+            ultima.distanciaLixo !== null
+            ? `${Number(ultima.distanciaLixo).toFixed(2)} cm`
+            : "indisponível";
         return {
-
-            resposta:
-                `O risco atual é ${risco.risco}. ` +
-                `O nível registrado é ${ultima.valor} ` +
-                `e a água está ${velocidade.tendencia.toLowerCase()}. ` +
-                `${risco.descricao}`,
-
-            dados: {
-
-                nivel:
-                    ultima.valor,
-
-                risco:
-                    risco.risco,
-
-                velocidade:
-                    velocidade.velocidade
-            }
+            resposta: statusLixo === "OBSTRUCAO"
+                ? `O sensor indicou OBSTRUÇÃO. A distância registrada foi ${distancia}.`
+                : statusLixo === "NORMAL"
+                    ? `A última leitura indica que não há obstrução. Distância registrada: ${distancia}.`
+                    : "O estado da obstrução está indeterminado; verifique o sensor ultrassônico e a última comunicação do ESP32.",
+            dados: { statusLixo, distanciaLixo: ultima.distanciaLixo }
         };
     }
 
-
-    if (
-
-        texto.includes("quanto tempo") ||
-
-        texto.includes("estimativa") ||
-
-        texto.includes("tempo")
-
-    ) {
-
+    if (/\b(alarme|alarmes|alerta|alertas|aviso)\b/.test(texto)) {
+        const recentes = alarmes.slice(-3).reverse();
         return {
-
-            resposta:
-                estimativa.mensagem,
-
-            dados: {
-
-                nivel:
-                    ultima.valor,
-
-                minutos:
-                    estimativa.minutos
-            }
+            resposta: alarmes.length
+                ? `Há ${alarmes.length} alarme(s) registrado(s). Mais recente: ${recentes[0].mensagem || recentes[0].tipo} (${recentes[0].timestamp || "data indisponível"}).`
+                : "Não há alarmes registrados no momento.",
+            dados: { total: alarmes.length, recentes }
         };
     }
 
-
-    if (
-
-        texto.includes("nível") ||
-
-        texto.includes("nivel")
-
-    ) {
-
+    if (/\b(sensor|esp32|conexao|conectado|comunicacao)\b/.test(texto)) {
         return {
-
-            resposta:
-                `O último nível registrado pelo ESP32 foi ${ultima.valor}. ` +
-                `O status atual é ${ultima.status}.`,
-
-            dados: {
-
-                nivel:
-                    ultima.valor,
-
-                status:
-                    ultima.status
-            }
+            resposta: diagnostico.mensagem,
+            dados: diagnostico
         };
     }
 
-
-    if (
-        texto.includes("subindo")
-    ) {
-
+    if (!ultima) {
         return {
-
-            resposta:
-                `A água está ${velocidade.tendencia.toLowerCase()}, ` +
-                `com velocidade de ${velocidade.velocidade} unidades por minuto.`,
-
-            dados:
-                velocidade
+            resposta: "Ainda não recebi dados do ESP32. Posso responder sobre o sistema assim que chegar a primeira leitura.",
+            dados: null
         };
     }
 
+    if (/\b(risco|enchente|alagamento|perigo)\b/.test(texto)) {
+        return {
+            resposta: `O risco atual é ${risco.risco}. O nível registrado é ${ultima.valor}, a tendência está ${velocidade.tendencia.toLowerCase()} e ${risco.descricao}`,
+            dados: { nivel: Number(ultima.valor), risco: risco.risco, velocidade: velocidade.velocidade }
+        };
+    }
+
+    if (/\b(quanto tempo|estimativa|tempo)\b/.test(texto)) {
+        return { resposta: estimativa.mensagem, dados: { nivel: Number(ultima.valor), minutos: estimativa.minutos } };
+    }
+
+    if (/\b(velocidade|subindo|descendo|tendencia)\b/.test(texto)) {
+        return {
+            resposta: `A água está ${velocidade.tendencia.toLowerCase()}, a ${velocidade.velocidade} ${velocidade.unidade}.`,
+            dados: velocidade
+        };
+    }
+
+    if (/\b(nivel|agua|status|situacao)\b/.test(texto)) {
+        const origem = ultima.fonteNivel === "SIMULADO" || ultima.fonteNivel === "TESTE"
+            ? "simulada/de teste"
+            : ultima.fonteNivel === "REAL"
+                ? "real"
+                : "com origem não informada";
+        return {
+            resposta: `O último nível recebido foi ${ultima.valor}. O status é ${ultima.status}. A leitura é ${origem}.`,
+            dados: { nivel: Number(ultima.valor), status: ultima.status, fonteNivel: ultima.fonteNivel }
+        };
+    }
 
     return {
-
-        resposta:
-            `Último nível: ${ultima.valor}. ` +
-            `Status: ${ultima.status}. ` +
-            `Tendência: ${velocidade.tendencia.toLowerCase()}. ` +
-            `Risco atual: ${risco.risco}.`,
-
-        dados: {
-
-            nivel:
-                ultima.valor,
-
-            status:
-                ultima.status,
-
-            risco:
-                risco.risco,
-
-            velocidade:
-                velocidade.velocidade
-        }
+        resposta: `Não reconheci essa pergunta como uma consulta do INVICTA. Posso ajudar com nível, tendência, risco, estimativa, alarmes, obstrução ou estado do sensor. O último nível registrado é ${ultima.valor}.`,
+        dados: { nivel: Number(ultima.valor), status: ultima.status }
     };
 }
 
@@ -1440,7 +1613,8 @@ app.post(
                     nivelDireto === null ||
                     !Number.isFinite(
                         nivelDireto
-                    )
+                    ) ||
+                    nivelDireto < 0
                 ) {
 
                     return res
@@ -1498,7 +1672,9 @@ app.post(
                         statusLixo:
                             req.body?.statusLixo,
                         distanciaLixo:
-                            req.body?.distanciaLixo
+                            req.body?.distanciaLixo,
+                        fonteNivel:
+                            req.body?.fonteNivel
                     }
                 );
 
@@ -1563,11 +1739,11 @@ app.post(
                 req.body?.nivel
             );
 
-
         if (
             !Number.isFinite(
                 nivel
-            )
+            ) ||
+            nivel < 0
         ) {
 
             return res
@@ -1584,7 +1760,8 @@ app.post(
 
         const resultado =
             processarLeitura(
-                `Nivel da agua: ${nivel}`
+                `Nivel da agua: ${nivel}`,
+                { fonteNivel: "TESTE" }
             );
 
 
@@ -1651,7 +1828,10 @@ app.get(
                 ultima.statusLixo,
 
             distanciaLixo:
-                ultima.distanciaLixo
+                ultima.distanciaLixo,
+
+            fonteNivel:
+                ultima.fonteNivel
         });
     }
 );
@@ -1691,6 +1871,53 @@ app.get(
         return res.json(
             [...alarmes].reverse()
         );
+    }
+);
+
+
+// ======================================================
+// ALARMES DE OBSTRUÇÃO
+// ======================================================
+// Histórico somente dos alertas de obstrução (lixo),
+// mais recentes primeiro. Alimenta a página obstrucao.html.
+
+app.get(
+    "/api/alarmes/obstrucao",
+    (req, res) => {
+
+        const alarmes =
+            lerArquivo(
+                ALARMES_FILE
+            );
+
+
+        const obstrucoes =
+            alarmes.filter(
+                (a) =>
+                    String(
+                        a.tipo || ""
+                    ).toUpperCase() ===
+                    "OBSTRUCAO"
+            );
+
+
+        return res.json(
+            [...obstrucoes].reverse()
+        );
+    }
+);
+
+
+// ======================================================
+// DIAGNÓSTICO DO SENSOR DE NÍVEL
+// ======================================================
+// Analisa as leituras recentes e devolve um veredito
+// sobre a saúde do sensor de nível de água.
+
+app.get(
+    "/api/diagnostico/sensor-nivel",
+    (req, res) => {
+        return res.json(diagnosticarSensor());
     }
 );
 
@@ -1778,11 +2005,22 @@ app.get(
 app.post(
     "/api/bot",
     (req, res) => {
+        const pergunta = req.body?.pergunta;
+        if (typeof pergunta !== "string" || !pergunta.trim()) {
+            return res.status(400).json({
+                sucesso: false,
+                erro: "Envie uma pergunta em texto."
+            });
+        }
+        if (pergunta.length > 500) {
+            return res.status(400).json({
+                sucesso: false,
+                erro: "A pergunta deve ter no máximo 500 caracteres."
+            });
+        }
 
         return res.json(
-            respostaBot(
-                req.body?.pergunta
-            )
+            respostaBot(pergunta)
         );
     }
 );
@@ -1851,47 +2089,27 @@ app.use(
 // INICIAR SERVIDOR
 // ======================================================
 
-server.listen(
-    PORT,
-    "0.0.0.0",
-    () => {
-
+if (require.main === module) {
+    server.listen(PORT, "0.0.0.0", () => {
+        const porta = server.address().port;
         console.log("");
+        console.log("======================================");
+        console.log("          INVICTA BACKEND");
+        console.log("======================================");
+        console.log(`Servidor rodando na porta ${porta}`);
+        console.log(`Atenção: ${NIVEL_ATENCAO}`);
+        console.log(`Perigo: ${NIVEL_PERIGO}`);
+        console.log(`Crítico: ${NIVEL_CRITICO}`);
+        console.log(`Clima: ${LATITUDE}, ${LONGITUDE}`);
+        console.log("======================================");
+    });
+}
 
-        console.log(
-            "======================================"
-        );
-
-        console.log(
-            "          INVICTA BACKEND"
-        );
-
-        console.log(
-            "======================================"
-        );
-
-        console.log(
-            `Servidor rodando na porta ${PORT}`
-        );
-
-        console.log(
-            `Atenção: ${NIVEL_ATENCAO}`
-        );
-
-        console.log(
-            `Perigo: ${NIVEL_PERIGO}`
-        );
-
-        console.log(
-            `Crítico: ${NIVEL_CRITICO}`
-        );
-
-        console.log(
-            `Clima: ${LATITUDE}, ${LONGITUDE}`
-        );
-
-        console.log(
-            "======================================"
-        );
-    }
-);
+module.exports = {
+    app,
+    server,
+    database,
+    processarLeitura,
+    respostaBot,
+    diagnosticarSensor
+};

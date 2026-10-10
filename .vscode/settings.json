@@ -1,0 +1,6 @@
+﻿{
+  "chat.disableAIFeatures": false,
+  "liveServer.settings.root": "/public",
+  "liveServer.settings.port": 5500,
+  "liveServer.settings.NoBrowser": false
+}

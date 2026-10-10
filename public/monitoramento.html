@@ -22,6 +22,7 @@
 
     <nav class="nav">
         <a href="/">Dashboard</a>
+        <a href="./obstrucao.html">Obstrução</a>
         <a href="./alarmes.html">Alarmes</a>
         <a href="./monitoramento.html">Monitoramento</a>
         <a href="./previsao.html">Previsão</a>
@@ -72,6 +73,16 @@
 
             <p id="dataLeitura">
                 Nenhuma leitura recebida.
+            </p>
+
+            <p>
+                Origem:
+                <strong id="fonteLeitura">--</strong>
+            </p>
+
+            <p>
+                Mensagem do ESP32:
+                <strong id="mensagemAtual">--</strong>
             </p>
 
         </div>
@@ -160,6 +171,8 @@
         <div
             id="ultimasLeituras"
             class="readings-list"
+            aria-live="polite"
+            aria-label="Últimas leituras recebidas do ESP32"
         >
 
             <div class="empty-state">
@@ -173,7 +186,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="./socket.io/socket.io.js"></script>
+<script src="./js/live-server-config.js"></script>
 <script src="./js/monitoramento.js"></script>
 
 </body>

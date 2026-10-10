@@ -371,6 +371,14 @@ main {
     border: 1px solid rgba(57, 211, 112, 0.2);
 }
 
+.connection.warning {
+    color: #ffd978;
+
+    background: rgba(255, 195, 55, 0.10);
+
+    border: 1px solid rgba(255, 195, 55, 0.2);
+}
+
 
 /* =========================================================
    QUICK ACCESS
@@ -600,6 +608,16 @@ main {
         rgba(255, 72, 72, 0.2);
 }
 
+.alarm-level.normal {
+    color: #91f5b4;
+
+    background:
+        rgba(46, 204, 113, 0.10);
+
+    border: 1px solid
+        rgba(46, 204, 113, 0.2);
+}
+
 .empty-state {
     padding: 45px 25px;
 
@@ -665,6 +683,24 @@ main {
     font-weight: 800;
 }
 
+.status-badge.normal {
+    color: #91f5b4;
+    background: rgba(57, 211, 112, 0.10);
+    border-color: rgba(57, 211, 112, 0.2);
+}
+
+.status-badge.atencao {
+    color: #ffd978;
+    background: rgba(255, 195, 55, 0.10);
+    border-color: rgba(255, 195, 55, 0.2);
+}
+
+.status-badge.perigo {
+    color: #ff9696;
+    background: rgba(255, 72, 72, 0.10);
+    border-color: rgba(255, 72, 72, 0.2);
+}
+
 .monitor-main p {
     margin-top: 20px;
 
@@ -719,6 +755,30 @@ main {
         rgba(255, 255, 255, 0.06);
 
     border-radius: 14px;
+}
+
+.telemetry-item {
+    gap: 20px;
+}
+
+.telemetry-details {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.telemetry-message {
+    margin-top: 5px;
+    color: #b8c2dc;
+}
+
+.telemetry-item .reading-value {
+    flex-shrink: 0;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(78, 124, 255, 0.10);
+    color: #a9bbff;
+    font-size: 11px;
+    text-align: center;
 }
 
 .reading-value {

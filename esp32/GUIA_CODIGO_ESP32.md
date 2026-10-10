@@ -1,304 +1,72 @@
-# GUIA — Código do ESP32 para o backend INVICTA
+# Guia do ESP32 para o backend INVICTA
 
-> Este arquivo é **apenas documentação/referência**. Não é compilado pelo
-> Node.js, não é carregado pelo dashboard e **não afeta** o funcionamento
-> do backend. Serve para você copiar o firmware correto para a sua placa.
+O firmware mantido e atualizado do projeto está em
+[`esp32_nivel_agua/esp32_nivel_agua.ino`](./esp32_nivel_agua/esp32_nivel_agua.ino).
+Este guia descreve a configuração e o formato de comunicação; não inclua
+senhas de Wi-Fi ou credenciais em documentação versionada.
 
----
+## Configuração
 
-## 1. Como o backend INVICTA recebe dados do ESP32
+1. Copie `esp32_nivel_agua/config.example.h` para `config.h` na mesma pasta.
+2. Preencha SSID, senha e endereço local do computador que executa o backend.
+   O ESP32 e o computador precisam estar na mesma rede e a porta do backend
+   (5000 por padrão) precisa estar acessível pela rede local.
+3. Confirme que o sensor analógico está no GPIO 34 (ADC1). Ajuste
+   `AGUA_OFFSET`, `AGUA_ESCALA` e os limiares no `.env` conforme a instalação.
+4. Para o HC-SR04, use TRIG no GPIO 25 e ECHO no GPIO 26. O ECHO do HC-SR04
+   pode fornecer 5 V: use divisor de tensão ou conversor de nível para limitar
+   o sinal a 3,3 V antes de ligá-lo ao ESP32.
+5. Compile e grave o firmware com o Arduino IDE/CLI e a placa ESP32 correta.
 
-Endpoint:
+`MODO_SENSOR_AGUA` aceita:
 
-    POST /esp32
-    Content-Type: application/json
+- `AUTO` (recomendado): usa o ADC real; zeros repetidos geram um aviso, mas
+  nunca são substituídos silenciosamente por medições simuladas.
+- `REAL`: usa somente o ADC real.
+- `SIMULADO`: gera valores de teste e os identifica no backend como simulados.
 
-O backend aceita estes corpos (JSON):
+Uma leitura real igual a zero é preservada. Como zero também pode ser a
+condição seca ou a calibração do sensor, confirme o hardware antes de concluir
+que há uma falha.
 
-| Formato | Exemplo | Quando usar |
-|--------|---------|-------------|
-| **(A) String** | `{ "mensagem": "Nivel da agua: 1234" }` | quando já monta a frase |
-| **(B) Numérico** | `{ "nivel": 1234 }` | **recomendado**, mais simples |
-| **(C) Os dois** | `{ "nivel": 1234, "mensagem": "Nivel da agua: 1234" }` | máxima compatibilidade |
+## Comunicação
 
-Regras importantes:
-- O valor pode ser **inteiro ou decimal** (aceita `12.7` e também `12,7`).
-- Campos **extras** (statusAgua, distanciaLixo, etc.) são **ignorados** pelo
-  backend atual, mas não atrapalham — pode enviá-los para uso futuro.
+O firmware envia `POST /esp32` com JSON na raiz:
 
-Classificação (limiares padrão do `.env`):
-
-    0 .. 999     -> SEGURO  (NORMAL)
-    1000 .. 1999 -> ATENCAO (ATENÇÃO)
-    2000 .. 2999 -> PERIGO  (ALERTA)
-    >= 3000      -> CRITICO (CRÍTICO)
-
----
-
-## 2. Análise dos dois códigos que você enviou
-
-### ✅ Código 1 (base) — funciona
-Envia: `{ "mensagem": "SEGURO - Nivel da agua: 1500" }`
-O regex interno acha o número `1500`, então o backend registra certo.
-O prefixo "SEGURO - " é ignorado.
-
-### ❌ Código 2 (completo, com lixo) — NÃO funciona como está
-Monta um JSON estruturado assim:
-
-    { "dispositivo": {...},
-      "leituras": { "agua": { "valor": 1500 } },
-      "alertas": {...} }
-
-O backend espera `mensagem` ou `nivel` **na raiz** do JSON. Como esse JSON
-não tem nenhum dos dois na raiz, a resposta é:
-
-    HTTP 400 { "sucesso": false, "erro": "Envie 'mensagem' ... ou 'nivel' numérico." }
-
-**Correção:** adicionar `"nivel"` e `"mensagem"` na raiz (feito no código abaixo).
-
----
-
-## 3. Código ESP32 recomendado (unificado e corrigido)
-
-Mantém tudo do seu Código 2 (sensor de água + ultrassônico de lixo + LEDs +
-buzzer) e **corrige o envio** para o formato que o backend aceita.
-
-Ver bloco de código abaixo.
-
-```cpp
-// =========================================================
-// INVICTA - ESP32 | Nível da água + obstrução (lixo)
-// Pronto para o backend INVICTA (POST /esp32).
-// =========================================================
-#include <WiFi.h>
-#include <HTTPClient.h>
-
-// ---------- WI-FI ----------
-const char* WIFI_SSID     = "ADFAMILIA";
-const char* WIFI_PASSWORD = "Ro01Na02Ge03";
-
-// URL do backend:
-//   Rede local : "http://192.168.15.75:5000/esp32"
-//   Publicado  : "https://backend-tcc--geovannaolivei9.replit.app/esp32"
-const char* BACKEND_URL = "http://192.168.15.75:5000/esp32";
-
-// ---------- PINOS ----------
-// ATENÇÃO (ADC): no ESP32 o ADC2 (GPIO 0,2,4,12,13,14,15,25,26,27) PARA de
-// funcionar quando o Wi-Fi está ligado e devolve 0. Por isso o sensor de água
-// DEVE ficar em um pino do ADC1: 32, 33, 34, 35, 36 ou 39.
-// GPIO 34 é input-only (ADC1_CH6): ideal para sensor analógico.
-const int PINO_SENSOR_AGUA = 34;
-const int LED_VERDE        = 4;
-const int LED_AMARELO      = 13;
-const int LED_VERMELHO     = 12;
-const int PINO_BUZZER      = 2;
-const int PINO_TRIG        = 25;
-const int PINO_ECHO        = 26;
-
-// ---------- LIMIARES (iguais ao .env do backend) ----------
-const int   NIVEL_ATENCAO     = 1000;
-const int   NIVEL_PERIGO      = 2000;
-const float DISTANCIA_CRITICA = 10.0;
-const unsigned long INTERVALO_ENVIO = 5000;
-
-unsigned long ultimaLeitura = 0;
-
-int   valorAgua      = 0;
-float distanciaLixo  = -1;
-String statusAgua    = "SEGURO";
-String statusLixo    = "INDETERMINADO";
-bool  alertaAgua     = false;
-bool  alertaLixo     = false;
-bool  alertaGeral    = false;
-
-// ---------- WI-FI ----------
-void conectarWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return;
-  Serial.print("Conectando ao Wi-Fi ");
-  Serial.println(WIFI_SSID);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  unsigned long inicio = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - inicio < 20000) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println();
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("Wi-Fi conectado!");
-    Serial.print("IP do ESP32: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("Falha ao conectar. Nova tentativa no próximo ciclo.");
-  }
-}
-
-// ---------- SENSOR DE ÁGUA (analógico) ----------
-void lerSensorAgua() {
-  valorAgua = analogRead(PINO_SENSOR_AGUA);
-  if (valorAgua < NIVEL_ATENCAO)     statusAgua = "SEGURO";
-  else if (valorAgua < NIVEL_PERIGO) statusAgua = "ATENCAO";
-  else                               statusAgua = "PERIGO";
-  alertaAgua = valorAgua >= NIVEL_ATENCAO;
-}
-
-// ---------- SENSOR DE LIXO (ultrassônico) ----------
-float lerDistancia() {
-  digitalWrite(PINO_TRIG, LOW);
-  delayMicroseconds(2);
-  digitalWrite(PINO_TRIG, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(PINO_TRIG, LOW);
-  unsigned long duracao = pulseIn(PINO_ECHO, HIGH, 30000);
-  if (duracao == 0) return -1;
-  return (duracao * 0.0343f) / 2.0f;
-}
-
-void lerSensorLixo() {
-  distanciaLixo = lerDistancia();
-  if (distanciaLixo <= 0) {
-    statusLixo = "INDETERMINADO";
-    alertaLixo = false;
-  } else if (distanciaLixo <= DISTANCIA_CRITICA) {
-    statusLixo = "OBSTRUCAO";
-    alertaLixo = true;
-  } else {
-    statusLixo = "NORMAL";
-    alertaLixo = false;
-  }
-}
-
-// ---------- LEDs + BUZZER ----------
-void atualizarAlertas() {
-  alertaGeral = alertaAgua || alertaLixo;
-  digitalWrite(LED_VERDE, LOW);
-  digitalWrite(LED_AMARELO, LOW);
-  digitalWrite(LED_VERMELHO, LOW);
-  if (valorAgua < NIVEL_ATENCAO)      digitalWrite(LED_VERDE, HIGH);
-  else if (valorAgua < NIVEL_PERIGO)  digitalWrite(LED_AMARELO, HIGH);
-  else                                digitalWrite(LED_VERMELHO, HIGH);
-  digitalWrite(PINO_BUZZER, alertaGeral ? HIGH : LOW);
-}
-
-// ---------- ENVIO AO BACKEND (FORMATO CORRETO) ----------
-void enviarBackend() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Sem Wi-Fi. Leitura não enviada.");
-    return;
-  }
-
-  HTTPClient http;
-  WiFiClient cliente;
-  http.setConnectTimeout(5000);
-  http.setTimeout(5000);
-
-  // API do HTTPClient 2.x. Se a sua versão for antiga, use http.begin(BACKEND_URL);
-  if (!http.begin(cliente, BACKEND_URL)) {
-    Serial.println("Não foi possível iniciar a requisição HTTP.");
-    return;
-  }
-  http.addHeader("Content-Type", "application/json");
-
-  // >>> CORREÇÃO PRINCIPAL <<<
-  // "nivel" e "mensagem" ficam na RAIZ do JSON, que é o que o backend aceita.
-  String statusAlerta  = alertaGeral ? "ATIVO" : "DESATIVADO";
-  String mensagemAgua  = statusAgua + " - Nivel da agua: " + String(valorAgua);
-
-  String json  = "{";
-  json += "\"nivel\":" + String(valorAgua) + ",";
-  json += "\"mensagem\":\"" + mensagemAgua + "\",";
-  // Extras (o backend atual ignora, mas ficam disponíveis para o futuro):
-  json += "\"statusAgua\":\"" + statusAgua + "\",";
-  json += "\"statusLixo\":\"" + statusLixo + "\",";
-  json += "\"distanciaLixo\":" + String(distanciaLixo, 2) + ",";
-  json += "\"alertaGeral\":" + String(alertaGeral ? "true" : "false") + ",";
-  json += "\"alerta\":\"" + statusAlerta + "\"";
-  json += "}";
-
-  Serial.println();
-  Serial.println("Enviando leitura para o backend:");
-  Serial.println(json);
-
-  int codigoHTTP = http.POST(json);
-  String resposta = http.getString();
-  Serial.print("Código HTTP: ");
-  Serial.println(codigoHTTP);
-  if (codigoHTTP > 0) {
-    Serial.print("Resposta: ");
-    Serial.println(resposta);
-  } else {
-    Serial.print("Falha HTTP: ");
-    Serial.println(http.errorToString(codigoHTTP));
-  }
-  http.end();
-}
-
-// ---------- MONITOR SERIAL ----------
-void mostrarLeituras() {
-  Serial.println("==============================");
-  Serial.print("Nível da água: ");   Serial.println(valorAgua);
-  Serial.print("Status da água: ");  Serial.println(statusAgua);
-  Serial.print("Distância do lixo: ");
-  if (distanciaLixo > 0) { Serial.print(distanciaLixo, 2); Serial.println(" cm"); }
-  else Serial.println("Sem leitura válida");
-  Serial.print("Status do lixo: ");  Serial.println(statusLixo);
-  Serial.print("Alerta geral: ");    Serial.println(alertaGeral ? "ATIVO" : "DESATIVADO");
-  Serial.println("==============================");
-}
-
-// ---------- SETUP ----------
-void setup() {
-  Serial.begin(115200);
-  pinMode(PINO_SENSOR_AGUA, INPUT);
-  pinMode(LED_VERDE, OUTPUT);
-  pinMode(LED_AMARELO, OUTPUT);
-  pinMode(LED_VERMELHO, OUTPUT);
-  pinMode(PINO_BUZZER, OUTPUT);
-  pinMode(PINO_TRIG, OUTPUT);
-  pinMode(PINO_ECHO, INPUT);
-  digitalWrite(PINO_TRIG, LOW);
-  digitalWrite(LED_VERDE, LOW);
-  digitalWrite(LED_AMARELO, LOW);
-  digitalWrite(LED_VERMELHO, LOW);
-  digitalWrite(PINO_BUZZER, LOW);
-  analogReadResolution(12);   // leitura de 0 a 4095
-  conectarWiFi();
-}
-
-// ---------- LOOP ----------
-void loop() {
-  if (WiFi.status() != WL_CONNECTED) conectarWiFi();
-  if (millis() - ultimaLeitura >= INTERVALO_ENVIO) {
-    ultimaLeitura = millis();
-    lerSensorAgua();
-    lerSensorLixo();
-    atualizarAlertas();
-    mostrarLeituras();
-    enviarBackend();
-  }
-  delay(10);
+```json
+{
+  "nivel": 1234,
+  "mensagem": "ATENCAO - Nivel da agua: 1234",
+  "fonteNivel": "REAL",
+  "statusLixo": "NORMAL",
+  "distanciaLixo": 24.5
 }
 ```
 
----
+O backend também aceita somente `mensagem` ou somente `nivel`. A distância
+deve ser `null` quando o ultrassônico não recebe eco válido; o backend guarda
+esse caso como indisponível, não como uma distância negativa.
 
-## 4. Checklist antes de gravar na placa
+As respostas bem-sucedidas usam HTTP 2xx. O firmware registra respostas
+rejeitadas e tenta novamente em erros de transporte e erros HTTP 5xx. Verifique
+o monitor Serial, o endpoint `GET /health` e a indicação de conexão no
+dashboard ao diagnosticar a comunicação.
 
-- [ ] `WIFI_SSID` / `WIFI_PASSWORD` com os dados da sua rede.
-- [ ] `BACKEND_URL`:
-  - teste na mesma rede -> `http://IP_DO_PC:5000/esp32`
-  - backend publicado -> `https://.../esp32`
-- [ ] Limiares (`NIVEL_ATENCAO=1000`, `NIVEL_PERIGO=2000`) iguais ao `.env` do backend.
-- [ ] Biblioteca **ArduinoJson** NÃO é necessária neste código (JSON montado na mão).
-- [ ] Abra o **Monitor Serial (115200)** e confira: deve aparecer `Código HTTP: 200`.
+Limiares padrão do backend (configuráveis pelo `.env`):
 
-## 5. Como testar sem a placa (pelo backend)
+| Leitura | Classificação |
+|---|---|
+| abaixo de 1000 | SEGURO |
+| 1000 a 1999 | ATENÇÃO |
+| 2000 a 2999 | PERIGO |
+| 3000 ou mais | CRÍTICO |
 
-```bash
-curl -X POST http://localhost:5000/esp32 \
-  -H "Content-Type: application/json" \
-  -d "{\"nivel\":1500}"
-```
+O histórico registra a origem da leitura (`REAL`, `SIMULADO`, `TESTE` ou
+`NAO_INFORMADA`) para que valores de teste não sejam confundidos com medições
+do sensor.
 
-Resposta esperada: `{"sucesso":true,...}` e o dashboard atualiza na hora
-via Socket.IO (evento `novaLeitura`).
+## Testes do backend
+
+Execute `npm test` para verificar as rotas, a persistência de leituras,
+diagnóstico, alarmes e respostas do assistente. A suíte usa um banco temporário
+e não altera o banco nem os arquivos de dados existentes do projeto.

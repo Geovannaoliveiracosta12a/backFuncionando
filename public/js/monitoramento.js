@@ -10,6 +10,12 @@ const nivelAtual =
 const statusAtual =
     document.getElementById("statusAtual");
 
+const fonteLeitura =
+    document.getElementById("fonteLeitura");
+
+const mensagemAtual =
+    document.getElementById("mensagemAtual");
+
 const dataLeitura =
     document.getElementById("dataLeitura");
 
@@ -33,6 +39,7 @@ const botaoAtualizar =
 // =========================================================
 
 let graficoNivel = null;
+let leiturasAtuais = [];
 
 
 // =========================================================
@@ -88,17 +95,19 @@ async function carregarLeituras() {
             return;
         }
 
-        atualizarInformacoes(
-            leituras
+        const atuais = new Map(
+            leiturasAtuais.map((leitura) => [chaveLeitura(leitura), leitura])
         );
-
-        atualizarLista(
-            leituras
+        leituras.forEach((leitura) =>
+            atuais.set(chaveLeitura(leitura), leitura)
         );
-
-        atualizarGrafico(
-            leituras
-        );
+        leiturasAtuais = [...atuais.values()]
+            .sort((a, b) =>
+                new Date(a.timestamp || a.data || 0) -
+                new Date(b.timestamp || b.data || 0)
+            )
+            .slice(-100);
+        atualizarVisualizacoes();
 
     } catch (erro) {
 
@@ -111,6 +120,50 @@ async function carregarLeituras() {
             </div>
         `;
     }
+}
+
+function chaveLeitura(leitura) {
+    return leitura.id !== undefined && leitura.id !== null
+        ? String(leitura.id)
+        : `${leitura.timestamp || leitura.data || ""}:${leitura.mensagem || ""}`;
+}
+
+function atualizarVisualizacoes() {
+    atualizarInformacoes(leiturasAtuais);
+    atualizarLista(leiturasAtuais);
+    atualizarGrafico(leiturasAtuais);
+}
+
+function receberLeitura(dados) {
+    const entrada = dados?.leitura || dados;
+    if (!entrada || typeof entrada !== "object") {
+        return;
+    }
+
+    const leitura = {
+        ...entrada,
+        nivel: entrada.nivel ?? entrada.valor ?? dados.nivel,
+        valor: entrada.valor ?? entrada.nivel ?? dados.nivel,
+        status: entrada.status ?? dados.status,
+        timestamp: entrada.timestamp ?? entrada.data ?? dados.data,
+        mensagem: entrada.mensagem ?? dados.mensagem,
+        statusLixo: entrada.statusLixo ?? dados.statusLixo,
+        distanciaLixo: entrada.distanciaLixo ?? dados.distanciaLixo,
+        fonteNivel: entrada.fonteNivel ?? dados.fonteNivel
+    };
+
+    const chave = chaveLeitura(leitura);
+    const atuais = new Map(
+        leiturasAtuais.map((item) => [chaveLeitura(item), item])
+    );
+    atuais.set(chave, leitura);
+    leiturasAtuais = [...atuais.values()]
+        .sort((a, b) =>
+            new Date(a.timestamp || a.data || 0) -
+            new Date(b.timestamp || b.data || 0)
+        )
+        .slice(-100);
+    atualizarVisualizacoes();
 }
 
 
@@ -133,6 +186,8 @@ function atualizarInformacoes(
         dataLeitura.textContent =
             "Nenhuma leitura recebida.";
 
+        if (fonteLeitura) fonteLeitura.textContent = "--";
+        if (mensagemAtual) mensagemAtual.textContent = "--";
         return;
     }
 
@@ -144,7 +199,7 @@ function atualizarInformacoes(
 
 
     nivelAtual.textContent =
-        ultima.nivel ?? "--";
+        ultima.nivel ?? ultima.valor ?? "--";
 
 
     statusAtual.textContent =
@@ -155,8 +210,17 @@ function atualizarInformacoes(
     dataLeitura.textContent =
         "Última leitura: " +
         formatarData(
-            ultima.data
+            ultima.timestamp || ultima.data
         );
+
+    if (fonteLeitura) {
+        fonteLeitura.textContent = ultima.fonteNivel || "Não informada";
+    }
+
+    if (mensagemAtual) {
+        mensagemAtual.textContent =
+            ultima.mensagem || "Sem mensagem textual; leitura numérica recebida.";
+    }
 }
 
 
@@ -270,36 +334,48 @@ function atualizarLista(
             .slice(0, 15);
 
 
-    ultimasLeituras.innerHTML =
-        ultimas.map(
-            (leitura) => {
+    const itens = ultimas.map((leitura) => {
+        const item = document.createElement("div");
+        item.className = "reading-item";
 
-                return `
-                    <div class="reading-item">
+        const info = document.createElement("div");
+        const status = document.createElement("strong");
+        status.textContent = leitura.status || "LEITURA";
 
-                        <div>
+        const data = document.createElement("div");
+        data.className = "reading-date";
+        data.textContent = formatarData(
+            leitura.timestamp || leitura.data
+        );
 
-                            <strong>
-                                ${leitura.status || "LEITURA"}
-                            </strong>
+        const valor = document.createElement("span");
+        valor.className = "reading-value";
+        valor.textContent = leitura.nivel ?? leitura.valor ?? "--";
 
-                            <div class="reading-date">
-                                ${formatarData(
-                                    leitura.data
-                                )}
-                            </div>
+        const mensagem = document.createElement("div");
+        mensagem.className = "reading-date telemetry-message";
+        mensagem.textContent =
+            leitura.mensagem || "Mensagem sem texto; valor numérico recebido.";
 
-                        </div>
+        const origem = document.createElement("div");
+        origem.className = "reading-date";
+        const distancia = Number(leitura.distanciaLixo);
+        const distanciaTexto =
+            leitura.distanciaLixo !== null &&
+            leitura.distanciaLixo !== undefined &&
+            Number.isFinite(distancia) &&
+            distancia > 0
+                ? `${distancia.toFixed(2)} cm`
+                : "indisponível";
+        origem.textContent =
+            `Origem: ${leitura.fonteNivel || "não informada"} · obstrução: ${leitura.statusLixo || "indeterminada"} · distância: ${distanciaTexto}`;
 
-                        <span class="reading-value">
-                            ${leitura.nivel ?? "--"}
-                        </span>
+        info.append(status, data, mensagem, origem);
+        item.append(info, valor);
+        return item;
+    });
 
-                    </div>
-                `;
-
-            }
-        ).join("");
+    ultimasLeituras.replaceChildren(...itens);
 }
 
 
@@ -330,9 +406,7 @@ function atualizarGrafico(
             (leitura) => {
 
                 const data =
-                    new Date(
-                        leitura.data
-                    );
+                    new Date(leitura.timestamp || leitura.data);
 
                 return data.toLocaleTimeString(
                     "pt-BR",
@@ -450,17 +524,21 @@ if (botaoAtualizar) {
 // =========================================================
 
 const socket =
-    io();
+    io(window.API_BASE || undefined);
+
+socket.on("connect", atualizarTudo);
 
 socket.on(
     "novaLeitura",
-    () => {
+    (dados) => {
 
         console.log(
             "Nova leitura recebida."
         );
 
-        atualizarTudo();
+        receberLeitura(dados);
+        carregarVelocidade();
+        carregarEstimativa();
     }
 );
 

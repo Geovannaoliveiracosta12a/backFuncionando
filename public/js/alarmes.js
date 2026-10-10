@@ -57,6 +57,8 @@ function classeAlarme(tipo) {
 
     if (
         texto.includes("perigo") ||
+        texto.includes("obstrucao") ||
+        texto.includes("obstrução") ||
         texto.includes("critico") ||
         texto.includes("crítico")
     ) {
@@ -173,61 +175,34 @@ function mostrarAlarmes(alarmes) {
         return;
     }
 
+    const itens = alarmes.map((alarme) => {
+        const tipo = alarme.tipo || alarme.status || "ALARME";
+        const item = document.createElement("div");
+        item.className = "alarm-item";
 
-    // -----------------------------------------------------
-    // LISTA
-    // -----------------------------------------------------
+        const info = document.createElement("div");
+        info.className = "alarm-info";
 
-    listaAlarmes.innerHTML =
-        alarmes.map((alarme) => {
+        const titulo = document.createElement("h3");
+        titulo.textContent =
+            alarme.mensagem || "Alerta registrado pelo sistema.";
 
-            const tipo =
-                alarme.tipo ||
-                alarme.status ||
-                "ALARME";
+        const detalhe = document.createElement("p");
+        const nivel = alarme.nivel ?? alarme.valor ?? "--";
+        const data = alarme.data || alarme.timestamp || alarme.criadoEm;
+        detalhe.textContent =
+            `Nível: ${nivel} | ${formatarData(data)}`;
 
-            const mensagem =
-                alarme.mensagem ||
-                "Alerta registrado pelo sistema.";
+        const etiqueta = document.createElement("span");
+        etiqueta.className = `alarm-level ${classeAlarme(tipo)}`;
+        etiqueta.textContent = tipo;
 
-            const nivel =
-                alarme.nivel !== undefined
-                    ? alarme.nivel
-                    : "--";
+        info.append(titulo, detalhe);
+        item.append(info, etiqueta);
+        return item;
+    });
 
-            const data =
-                alarme.data ||
-                alarme.timestamp ||
-                alarme.criadoEm;
-
-            const classe =
-                classeAlarme(tipo);
-
-            return `
-                <div class="alarm-item">
-
-                    <div class="alarm-info">
-
-                        <h3>
-                            ${mensagem}
-                        </h3>
-
-                        <p>
-                            Nível: ${nivel}
-                            |
-                            ${formatarData(data)}
-                        </p>
-
-                    </div>
-
-                    <span class="alarm-level ${classe}">
-                        ${tipo}
-                    </span>
-
-                </div>
-            `;
-
-        }).join("");
+    listaAlarmes.replaceChildren(...itens);
 }
 
 
@@ -249,7 +224,9 @@ if (botaoAtualizar) {
 // =========================================================
 
 const socket =
-    io();
+    io(window.API_BASE || undefined);
+
+socket.on("connect", carregarAlarmes);
 
 socket.on(
     "novoAlarme",
@@ -261,6 +238,11 @@ socket.on(
 
         carregarAlarmes();
     }
+);
+
+socket.on(
+    "novoAlarmeObstrucao",
+    carregarAlarmes
 );
 
 

@@ -178,36 +178,31 @@ async function carregarClima() {
         }
 
 
-        weatherContainer.innerHTML =
-            dados.previsao
-                .map(
-                    (dia) => {
+        const cartoes = dados.previsao.map((dia) => {
+            const cartao = document.createElement("div");
+            cartao.className = "weather-card";
 
-                        return `
-                            <div class="weather-card">
+            const data = document.createElement("div");
+            data.className = "weather-date";
+            data.textContent = dia.data || "--";
 
-                                <div class="weather-date">
-                                    ${dia.data || "--"}
-                                </div>
+            const temperatura = document.createElement("div");
+            temperatura.className = "temperature";
+            temperatura.textContent = `${dia.temperatura ?? "--"}°C`;
 
-                                <div class="temperature">
-                                    ${dia.temperatura ?? "--"}°C
-                                </div>
+            const descricao = document.createElement("div");
+            descricao.className = "weather-description";
+            descricao.textContent = dia.descricao || "Sem descrição";
 
-                                <div class="weather-description">
-                                    ${dia.descricao || "Sem descrição"}
-                                </div>
+            const chuva = document.createElement("div");
+            chuva.className = "weather-description";
+            chuva.textContent = `Chuva: ${dia.chuva ?? "--"}%`;
 
-                                <div class="weather-description">
-                                    Chuva:
-                                    ${dia.chuva ?? "--"}%
-                                </div>
+            cartao.append(data, temperatura, descricao, chuva);
+            return cartao;
+        });
 
-                            </div>
-                        `;
-                    }
-                )
-                .join("");
+        weatherContainer.replaceChildren(...cartoes);
 
     } catch (erro) {
 
@@ -253,7 +248,7 @@ if (atualizarClima) {
 // =========================================================
 
 const socket =
-    io();
+    io(window.API_BASE || undefined);
 
 socket.on(
     "novaLeitura",

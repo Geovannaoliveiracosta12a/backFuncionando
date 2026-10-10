@@ -22,13 +22,19 @@ const { DatabaseSync } = require("node:sqlite");
 const path = require("path");
 const fs = require("fs");
 
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = process.env.INVICTA_DATA_DIR
+    ? path.resolve(process.env.INVICTA_DATA_DIR)
+    : path.join(__dirname, "data");
 
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-const DB_FILE = path.join(DATA_DIR, "invicta.db");
+const DB_FILE = process.env.INVICTA_DB_FILE
+    ? path.resolve(process.env.INVICTA_DB_FILE)
+    : path.join(DATA_DIR, "invicta.db");
+
+fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
 
 const db = new DatabaseSync(DB_FILE);
 
@@ -52,7 +58,8 @@ db.exec(`
         data       TEXT,
         hora       TEXT,
         statusLixo TEXT,
-        distanciaLixo REAL
+        distanciaLixo REAL,
+        fonteNivel TEXT
     );
 
     CREATE TABLE IF NOT EXISTS alarmes (
@@ -65,7 +72,8 @@ db.exec(`
         gravidade  INTEGER,
         data       TEXT,
         hora       TEXT,
-        timestamp  TEXT
+        timestamp  TEXT,
+        distanciaLixo REAL
     );
 
     CREATE INDEX IF NOT EXISTS idx_leituras_ts
@@ -81,8 +89,10 @@ db.exec(`
 function adicionarColunaSeFaltando(sql) {
     try {
         db.exec(sql);
-    } catch (_) {
-        // coluna ja existe - ignora
+    } catch (erro) {
+        if (!/duplicate column name/i.test(erro.message)) {
+            throw erro;
+        }
     }
 }
 
@@ -92,6 +102,14 @@ adicionarColunaSeFaltando(
 
 adicionarColunaSeFaltando(
     "ALTER TABLE leituras ADD COLUMN distanciaLixo REAL"
+);
+
+adicionarColunaSeFaltando(
+    "ALTER TABLE alarmes ADD COLUMN distanciaLixo REAL"
+);
+
+adicionarColunaSeFaltando(
+    "ALTER TABLE leituras ADD COLUMN fonteNivel TEXT"
 );
 
 // ======================================================
@@ -128,6 +146,26 @@ function ultimoAlarme() {
     return row || null;
 }
 
+function ultimoAlarmeDoTipo(tipo) {
+    const row = db.prepare(`
+        SELECT * FROM alarmes
+        WHERE tipo = ?
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 1
+    `).get(tipo);
+    return row || null;
+}
+
+function proximoId(tabela) {
+    if (tabela !== "leituras" && tabela !== "alarmes") {
+        throw new Error("Tabela inválida para gerar identificador.");
+    }
+    const row = db.prepare(
+        `SELECT id FROM ${tabela} ORDER BY id DESC LIMIT 1`
+    ).get();
+    return Math.max(Date.now(), Number(row?.id || 0) + 1);
+}
+
 function migrarJsonAntigo() {
     const LEITURAS_JSON = path.join(DATA_DIR, "leituras.json");
     const ALARMES_JSON = path.join(DATA_DIR, "alarmes.json");
@@ -140,8 +178,9 @@ function migrarJsonAntigo() {
                 const stmt = db.prepare(`
                     INSERT OR IGNORE INTO leituras
                     (id, valor, nivel, mensagem, status,
-                     classificacao, gravidade, timestamp, data, hora)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     classificacao, gravidade, timestamp, data, hora,
+                     statusLixo, distanciaLixo, fonteNivel)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `);
                 for (const l of dados) {
                     stmt.run(
@@ -154,7 +193,10 @@ function migrarJsonAntigo() {
                         l.gravidade ?? null,
                         l.timestamp ?? null,
                         l.data ?? null,
-                        l.hora ?? null
+                        l.hora ?? null,
+                        l.statusLixo ?? null,
+                        l.distanciaLixo ?? null,
+                        l.fonteNivel ?? null
                     );
                 }
                 console.log(
@@ -218,8 +260,8 @@ function inserirLeitura(l) {
         INSERT INTO leituras
         (id, valor, nivel, mensagem, status,
          classificacao, gravidade, timestamp, data, hora,
-         statusLixo, distanciaLixo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         statusLixo, distanciaLixo, fonteNivel)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
         l.id,
         Number(l.valor ?? l.nivel ?? 0),
@@ -234,7 +276,8 @@ function inserirLeitura(l) {
         l.statusLixo ?? null,
         (l.distanciaLixo === undefined || l.distanciaLixo === null)
             ? null
-            : Number(l.distanciaLixo)
+            : Number(l.distanciaLixo),
+        l.fonteNivel ?? null
     );
     return l;
 }
@@ -249,8 +292,8 @@ function inserirAlarme(a) {
     db.prepare(`
         INSERT INTO alarmes
         (id, tipo, status, mensagem, valor, nivel,
-         gravidade, data, hora, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         gravidade, data, hora, timestamp, distanciaLixo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
         a.id,
         a.tipo ?? null,
@@ -261,7 +304,10 @@ function inserirAlarme(a) {
         a.gravidade ?? null,
         a.data ?? null,
         a.hora ?? null,
-        a.timestamp ?? null
+        a.timestamp ?? null,
+        (a.distanciaLixo === undefined || a.distanciaLixo === null)
+            ? null
+            : Number(a.distanciaLixo)
     );
     return a;
 }
@@ -302,8 +348,8 @@ function substituirLeituras(lista) {
             INSERT INTO leituras
             (id, valor, nivel, mensagem, status,
              classificacao, gravidade, timestamp, data, hora,
-             statusLixo, distanciaLixo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             statusLixo, distanciaLixo, fonteNivel)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         for (const l of itens) {
             stmt.run(
@@ -320,7 +366,8 @@ function substituirLeituras(lista) {
                 l.statusLixo ?? null,
                 (l.distanciaLixo === undefined || l.distanciaLixo === null)
                     ? null
-                    : Number(l.distanciaLixo)
+                    : Number(l.distanciaLixo),
+                l.fonteNivel ?? null
             );
         }
         db.exec("COMMIT");
@@ -338,8 +385,8 @@ function substituirAlarmes(lista) {
         const stmt = db.prepare(`
             INSERT INTO alarmes
             (id, tipo, status, mensagem, valor, nivel,
-             gravidade, data, hora, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             gravidade, data, hora, timestamp, distanciaLixo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         for (const a of itens) {
             stmt.run(
@@ -352,7 +399,10 @@ function substituirAlarmes(lista) {
                 a.gravidade ?? null,
                 a.data ?? null,
                 a.hora ?? null,
-                a.timestamp ?? null
+                a.timestamp ?? null,
+                (a.distanciaLixo === undefined || a.distanciaLixo === null)
+                    ? null
+                    : Number(a.distanciaLixo)
             );
         }
         db.exec("COMMIT");
@@ -371,10 +421,11 @@ module.exports = {
     listarAlarmes,
     inserirAlarme,
     ultimoAlarme,
+    ultimoAlarmeDoTipo,
+    proximoId,
     substituirAlarmes,
     contarLeituras,
     contarAlarmes,
     limparExcedente,
     fechar
 };
-

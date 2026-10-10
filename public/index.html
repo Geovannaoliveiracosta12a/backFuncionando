@@ -25,6 +25,7 @@
 
     <nav class="nav">
         <a href="/">Dashboard</a>
+        <a href="./obstrucao.html">Obstrução</a>
         <a href="./alarmes.html">Alarmes</a>
         <a href="./monitoramento.html">Monitoramento</a>
         <a href="./previsao.html">Previsão</a>
@@ -165,11 +166,56 @@
 
     </section>
 
+    <section class="readings-section dashboard-messages">
+
+        <div class="section-heading">
+            <div>
+                <span class="section-label">
+                    TELEMETRIA RECEBIDA
+                </span>
+                <h2>
+                    Mensagens do ESP32
+                </h2>
+            </div>
+
+            <a href="/monitoramento.html" class="button">
+                Ver monitoramento
+            </a>
+        </div>
+
+        <div
+            id="mensagensEsp32"
+            class="readings-list"
+            aria-live="polite"
+            aria-label="Últimas mensagens recebidas do ESP32"
+        >
+            <div class="empty-state">
+                Aguardando mensagens do ESP32...
+            </div>
+        </div>
+
+    </section>
+
     <section class="quick-access">
+
+        <a href="/obstrucao.html" class="access-card">
+
+            <span>01</span>
+
+            <h3>
+                Alertas de obstrução
+            </h3>
+
+            <p>
+                Monitore o tubo de drenagem e o
+                histórico de obstruções (lixo).
+            </p>
+
+        </a>
 
         <a href="/alarmes.html" class="access-card">
 
-            <span>01</span>
+            <span>02</span>
 
             <h3>
                 Histórico de alarmes
@@ -184,7 +230,7 @@
 
         <a href="/monitoramento.html" class="access-card">
 
-            <span>02</span>
+            <span>03</span>
 
             <h3>
                 Monitoramento
@@ -198,7 +244,7 @@
 
         <a href="/previsao.html" class="access-card">
 
-            <span>03</span>
+            <span>04</span>
 
             <h3>
                 Previsão de risco
@@ -212,7 +258,7 @@
 
         <a href="/bot.html" class="access-card">
 
-            <span>04</span>
+            <span>05</span>
 
             <h3>
                 INVICTA BOT
@@ -220,7 +266,7 @@
 
             <p>
                 Consulte o sistema através do assistente
-                inteligente.
+                baseado nas leituras e nos alarmes.
             </p>
 
         </a>
@@ -229,7 +275,7 @@
 
 </main>
 
-<script src="./socket.io/socket.io.js"></script>
+<script src="./js/live-server-config.js"></script>
 <script src="./js/app.js"></script>
 
 
