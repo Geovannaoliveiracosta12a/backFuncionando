@@ -17,6 +17,8 @@ const statusElemento = document.getElementById("status");
 const estimativaElemento = document.getElementById("estimativa");
 const ultimaElemento = document.getElementById("ultima");
 const conexaoElemento = document.getElementById("conexao");
+const obstrucaoElemento = document.getElementById("obstrucao");
+const distanciaLixoElemento = document.getElementById("distanciaLixo");
 
 
 // =========================================================
@@ -115,6 +117,56 @@ function atualizarDashboard(dados) {
         ultimaElemento.textContent =
             "Última leitura: " +
             formatarData(dados.data);
+    }
+
+
+    // -----------------------------------------------------
+    // OBSTRUÇÃO / LIXO
+    // -----------------------------------------------------
+
+    // Os dados podem vir no topo (Socket.IO) ou dentro de
+    // "leitura" (carga inicial via API). Aceitamos os dois.
+    const statusLixo =
+        dados.statusLixo ??
+        dados.leitura?.statusLixo ??
+        null;
+
+    const distanciaLixo =
+        dados.distanciaLixo ??
+        dados.leitura?.distanciaLixo ??
+        null;
+
+
+    if (obstrucaoElemento) {
+
+        if (statusLixo) {
+
+            obstrucaoElemento.textContent =
+                statusLixo;
+
+        } else {
+
+            obstrucaoElemento.textContent =
+                "--";
+        }
+    }
+
+
+    if (distanciaLixoElemento) {
+
+        if (
+            distanciaLixo !== null &&
+            distanciaLixo !== undefined
+        ) {
+
+            distanciaLixoElemento.textContent =
+                Number(distanciaLixo).toFixed(2);
+
+        } else {
+
+            distanciaLixoElemento.textContent =
+                "--";
+        }
     }
 }
 

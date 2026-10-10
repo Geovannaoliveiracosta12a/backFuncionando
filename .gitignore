@@ -1,0 +1,23 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente / segredos
+.env
+
+# Configuração local do ESP32 (credenciais reais)
+esp32/**/config.h
+
+# Dados gerados em tempo de execução
+data/*.json
+
+# Temporários de escrita atômica
+*.tmp
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operacional
+Thumbs.db
+Desktop.ini
+.DS_Store

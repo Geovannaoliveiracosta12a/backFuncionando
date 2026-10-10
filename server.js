@@ -8,6 +8,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { Server } = require("socket.io");
+const database = require("./database");
 
 const app = express();
 const server = http.createServer(app);
@@ -91,7 +92,7 @@ app.use(
 
 
 // ======================================================
-// CRIAR PASTA E ARQUIVOS
+// CRIAR PASTA DE DADOS
 // ======================================================
 
 if (!fs.existsSync(DATA_DIR)) {
@@ -105,60 +106,36 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 
 
-function garantirArquivo(caminho) {
-
-    if (!fs.existsSync(caminho)) {
-
-        fs.writeFileSync(
-            caminho,
-            "[]",
-            "utf8"
-        );
-    }
-}
-
-
-garantirArquivo(
-    LEITURAS_FILE
-);
-
-garantirArquivo(
-    ALARMES_FILE
-);
-
-
 // ======================================================
-// LER JSON
+// LER (agora via banco SQLite)
 // ======================================================
 
 function lerArquivo(caminho) {
 
     try {
 
-        const conteudo =
-            fs.readFileSync(
-                caminho,
-                "utf8"
-            );
+        if (
+            caminho ===
+            LEITURAS_FILE
+        ) {
 
-        if (!conteudo.trim()) {
-
-            return [];
+            return database.listarLeituras();
         }
 
-        const dados =
-            JSON.parse(
-                conteudo
-            );
+        if (
+            caminho ===
+            ALARMES_FILE
+        ) {
 
-        return Array.isArray(dados)
-            ? dados
-            : [];
+            return database.listarAlarmes();
+        }
+
+        return [];
 
     } catch (erro) {
 
         console.error(
-            "Erro ao ler arquivo:",
+            "Erro ao ler banco:",
             erro.message
         );
 
@@ -176,15 +153,34 @@ function salvarArquivo(
     dados
 ) {
 
-    fs.writeFileSync(
-        caminho,
-        JSON.stringify(
-            dados,
-            null,
-            2
-        ),
-        "utf8"
-    );
+    // Agora salva no banco SQLite. Mantém a mesma assinatura
+    // usada no resto do código: salvarArquivo(FILE, lista).
+    // Substitui todo o conteúdo da tabela pela lista, em
+    // transação (grava tudo ou não grava nada).
+
+    if (
+        caminho ===
+        LEITURAS_FILE
+    ) {
+
+        database.substituirLeituras(
+            dados
+        );
+
+        return;
+    }
+
+    if (
+        caminho ===
+        ALARMES_FILE
+    ) {
+
+        database.substituirAlarmes(
+            dados
+        );
+
+        return;
+    }
 }
 
 
@@ -302,7 +298,7 @@ function extrairNivel(
 
     const resultado =
         mensagem.match(
-            /Nivel da agua:\s*(\d+)/i
+            /Nivel da agua:\s*(\d+(?:[.,]\d+)?)/i
         );
 
 
@@ -313,8 +309,11 @@ function extrairNivel(
 
 
     const valor =
-        Number(
-            resultado[1]
+        parseFloat(
+            resultado[1].replace(
+                ",",
+                "."
+            )
         );
 
 
@@ -612,16 +611,8 @@ function gerarAlarme(
     }
 
 
-    const alarmes =
-        lerArquivo(
-            ALARMES_FILE
-        );
-
-
     const ultimo =
-        alarmes[
-            alarmes.length - 1
-        ];
+        database.ultimoAlarme();
 
 
     const mesmoTipo =
@@ -690,23 +681,14 @@ function gerarAlarme(
     };
 
 
-    alarmes.push(
+    // Grava APENAS o novo alarme (INSERT) e poda o excedente.
+    database.inserirAlarme(
         alarme
     );
 
-
-    while (
-        alarmes.length >
+    database.limparExcedente(
+        "alarmes",
         MAX_ALARMES
-    ) {
-
-        alarmes.shift();
-    }
-
-
-    salvarArquivo(
-        ALARMES_FILE,
-        alarmes
     );
 
 
@@ -725,7 +707,8 @@ function gerarAlarme(
 // ======================================================
 
 function processarLeitura(
-    mensagem
+    mensagem,
+    extras = {}
 ) {
 
     const valor =
@@ -777,33 +760,29 @@ function processarLeitura(
             dataBR(timestamp),
 
         hora:
-            horaBR(timestamp)
+            horaBR(timestamp),
+
+        statusLixo:
+            extras?.statusLixo ?? null,
+
+        distanciaLixo:
+            (extras?.distanciaLixo === undefined ||
+             extras?.distanciaLixo === null)
+                ? null
+                : Number(extras.distanciaLixo)
     };
 
 
-    const leituras =
-        lerArquivo(
-            LEITURAS_FILE
-        );
-
-
-    leituras.push(
+    // Grava APENAS a nova leitura (INSERT) e poda o excedente
+    // direto no banco. Muito mais rapido/seguro que reescrever
+    // a tabela inteira a cada leitura.
+    database.inserirLeitura(
         leitura
     );
 
-
-    while (
-        leituras.length >
+    database.limparExcedente(
+        "leituras",
         MAX_LEITURAS
-    ) {
-
-        leituras.shift();
-    }
-
-
-    salvarArquivo(
-        LEITURAS_FILE,
-        leituras
     );
 
 
@@ -845,6 +824,12 @@ function processarLeitura(
 
             data:
                 leitura.timestamp,
+
+            statusLixo:
+                leitura.statusLixo,
+
+            distanciaLixo:
+                leitura.distanciaLixo,
 
             leitura,
 
@@ -1425,8 +1410,54 @@ app.post(
 
         try {
 
-            const mensagem =
+            let mensagem =
                 req.body?.mensagem;
+
+            // Aceita também o campo "nivel" numérico (JSON),
+            // mantendo compatibilidade com o formato "mensagem".
+            if (
+                mensagem === undefined ||
+                mensagem === null ||
+                mensagem === ""
+            ) {
+
+                const nivelDireto =
+                    req.body?.nivel !==
+                        undefined &&
+                    req.body?.nivel !== null
+                        ? Number(
+                            String(
+                                req.body.nivel
+                            ).replace(
+                                ",",
+                                "."
+                            )
+                        )
+                        : null;
+
+
+                if (
+                    nivelDireto === null ||
+                    !Number.isFinite(
+                        nivelDireto
+                    )
+                ) {
+
+                    return res
+                        .status(400)
+                        .json({
+
+                            sucesso: false,
+
+                            erro:
+                                "Envie 'mensagem' (ex.: \"Nivel da agua: 1234\") ou 'nivel' numérico."
+                        });
+                }
+
+
+                mensagem =
+                    `Nivel da agua: ${nivelDireto}`;
+            }
 
 
             if (!mensagem) {
@@ -1438,7 +1469,7 @@ app.post(
                         sucesso: false,
 
                         erro:
-                            "Campo 'mensagem' é obrigatório."
+                            "Envie 'mensagem' (ex.: \"Nivel da agua: 1234\") ou 'nivel' numérico."
                     });
             }
 
@@ -1462,7 +1493,13 @@ app.post(
 
             const resultado =
                 processarLeitura(
-                    mensagem
+                    mensagem,
+                    {
+                        statusLixo:
+                            req.body?.statusLixo,
+                        distanciaLixo:
+                            req.body?.distanciaLixo
+                    }
                 );
 
 
@@ -1569,26 +1606,18 @@ app.get(
     "/api/leituras/ultima",
     (req, res) => {
 
-        const leituras =
-            lerArquivo(
-                LEITURAS_FILE
-            );
+        const ultima =
+            database.ultimaLeitura();
 
 
         if (
-            leituras.length === 0
+            !ultima
         ) {
 
             return res.json(
                 null
             );
         }
-
-
-        const ultima =
-            leituras[
-                leituras.length - 1
-            ];
 
 
         return res.json({
@@ -1616,7 +1645,13 @@ app.get(
                 ultima.timestamp,
 
             mensagem:
-                ultima.mensagem
+                ultima.mensagem,
+
+            statusLixo:
+                ultima.statusLixo,
+
+            distanciaLixo:
+                ultima.distanciaLixo
         });
     }
 );
