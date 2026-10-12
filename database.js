@@ -18,6 +18,8 @@
 //
 // ======================================================
 
+//TESTE//
+
 const { DatabaseSync } = require("node:sqlite");
 const path = require("path");
 const fs = require("fs");
