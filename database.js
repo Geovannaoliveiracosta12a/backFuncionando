@@ -78,6 +78,13 @@ db.exec(`
         distanciaLixo REAL
     );
 
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        senhaHash TEXT NOT NULL,
+        criadoEm TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_leituras_ts
         ON leituras (timestamp);
 
@@ -338,6 +345,17 @@ function fechar() {
     }
 }
 
+function buscarUsuarioPorEmail(email) {
+    return db.prepare("SELECT * FROM usuarios WHERE email = ?").get(email) || null;
+}
+
+function criarUsuario(email, senhaHash) {
+    const resultado = db.prepare(
+        "INSERT INTO usuarios (email, senhaHash, criadoEm) VALUES (?, ?, ?)"
+    ).run(email, senhaHash, new Date().toISOString());
+    return { id: Number(resultado.lastInsertRowid), email };
+}
+
 // Substitui TODO o conteudo da tabela pela lista recebida.
 // Usado pelo server.js no padrao "ler -> modificar -> salvar".
 // Roda em transacao: ou grava tudo, ou nao grava nada.
@@ -429,5 +447,7 @@ module.exports = {
     contarLeituras,
     contarAlarmes,
     limparExcedente,
-    fechar
+    fechar,
+    buscarUsuarioPorEmail,
+    criarUsuario
 };

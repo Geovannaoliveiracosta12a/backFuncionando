@@ -24,12 +24,23 @@
     </div>
 
     <nav class="nav">
-        <a href="/">Dashboard</a>
-        <a href="./obstrucao.html">Obstrução</a>
-        <a href="./alarmes.html">Alarmes</a>
-        <a href="./monitoramento.html">Monitoramento</a>
-        <a href="./previsao.html">Previsão</a>
-        <a href="./bot.html">BOT</a>
+        <!-- Ícone do Hamburger -->
+        <button class="menu-icon" id="menuIcon" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="navLinks">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <!-- Links do menu -->
+        <div class="nav-links" id="navLinks">
+            <a href="/">Dashboard</a>
+            <a href="./obstrucao.html">Obstrução</a>
+            <a href="./alarmes.html">Alarmes</a>
+            <a href="./monitoramento.html">Monitoramento</a>
+            <a href="./previsao.html">Previsão</a>
+            <a href="./bot.html" id="navBotLink" style="display: none;">BOT</a>
+            <a href="./login.html" id="navLoginLink">Login/Cadastro</a>
+            <a href="#" id="navLogoutLink" style="display: none;">Sair</a>
+        </div>
     </nav>
 
 </header>
@@ -279,6 +290,7 @@
 <script src="./js/app.js"></script>
 
 
+<script src="./js/menu.js"></script>
 </body>
 
 <!-- TESTE -->

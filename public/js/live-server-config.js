@@ -1,7 +1,11 @@
 // Conecta o frontend servido pelo Live Server ao backend Express.
 // Quando a página é servida pelo próprio Express, usa caminhos relativos.
-window.API_BASE = location.port === "5500"
-    ? `${location.protocol}//${location.hostname}:5000`
+const host = location.hostname;
+const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1" ||
+    /^10\./.test(host) || /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+window.API_BASE = isLocalHost && location.port !== "5000"
+    ? `${location.protocol}//${host.includes(":") ? `[${host}]` : host}:5000`
     : "";
 
 const fetchOriginal = window.fetch.bind(window);

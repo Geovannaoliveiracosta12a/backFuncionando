@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INVICTA | Login e cadastro</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+    <header class="header">
+        <a class="logo" href="/">INVICTA</a>
+        <nav class="nav"><a href="/">Voltar ao dashboard</a></nav>
+    </header>
+    <main class="auth-main">
+        <section class="auth-card">
+            <span class="tag">ACESSO AO INVICTA BOT</span>
+            <h1 id="authTitle">Entre na sua conta</h1>
+            <p id="authDescription">Faça login ou crie seu cadastro para conversar com o assistente.</p>
+            <form id="authForm" novalidate>
+                <label for="email">E-mail</label>
+                <input id="email" name="email" type="email" autocomplete="email" required maxlength="254">
+                <label for="senha">Senha</label>
+                <input id="senha" name="senha" type="password" autocomplete="current-password" required minlength="8" maxlength="72">
+                <p id="authError" class="auth-error" role="alert" aria-live="polite"></p>
+                <button id="authSubmit" class="button" type="submit">Entrar</button>
+            </form>
+            <p class="auth-switch"><span id="authSwitchText">Ainda não tem uma conta?</span> <button id="authSwitch" type="button">Criar cadastro</button></p>
+        </section>
+    </main>
+    <script src="./js/live-server-config.js"></script>
+    <script src="./js/login.js"></script>
+</body>
+</html>

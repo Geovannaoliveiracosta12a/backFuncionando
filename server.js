@@ -9,13 +9,16 @@ const fs = require("fs");
 const path = require("path");
 const { Server } = require("socket.io");
 const database = require("./database");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: true,
+        credentials: true,
         methods: ["GET", "POST"]
     }
 });
@@ -77,6 +80,23 @@ const LONGITUDE = Number(
 );
 
 const FUSO = "America/Sao_Paulo";
+const JWT_SECRET = process.env.JWT_SECRET || require("crypto").randomBytes(32).toString("hex");
+const COOKIE_NAME = "invicta_session";
+
+function lerCookie(req, nome) {
+    const cookies = String(req.headers.cookie || "").split(";");
+    const cookie = cookies.map((item) => item.trim()).find((item) => item.startsWith(`${nome}=`));
+    return cookie ? decodeURIComponent(cookie.slice(nome.length + 1)) : null;
+}
+
+function autenticar(req, res, next) {
+    try {
+        req.usuario = jwt.verify(lerCookie(req, COOKIE_NAME) || "", JWT_SECRET);
+        return next();
+    } catch (_) {
+        return res.status(401).json({ erro: "Faça login para acessar este recurso." });
+    }
+}
 
 
 // ======================================================
@@ -89,7 +109,7 @@ app.use(
     })
 );
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 
 app.use(
     express.json({
@@ -98,6 +118,17 @@ app.use(
 );
 
 app.use(morgan("dev"));
+
+// A página do bot é protegida no servidor; esconder o link no navegador não basta.
+app.use((req, res, next) => {
+    if (req.path !== "/bot.html") return next();
+    try {
+        req.usuario = jwt.verify(lerCookie(req, COOKIE_NAME) || "", JWT_SECRET);
+        return next();
+    } catch (_) {
+        return res.redirect("/login.html?redirect=/bot.html");
+    }
+});
 
 app.use(
     express.static(PUBLIC_DIR)
@@ -1147,6 +1178,66 @@ function obterRisco() {
 
 
 // ======================================================
+// AUTENTICAÇÃO
+// ======================================================
+
+function emitirSessao(req, res, usuario) {
+    const token = jwt.sign({ id: usuario.id, email: usuario.email }, JWT_SECRET, { expiresIn: "8h" });
+    const secure = req.secure || req.headers["x-forwarded-proto"] === "https";
+    res.setHeader("Set-Cookie", `${COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800${secure ? "; Secure" : ""}`);
+    return res.json({ usuario: { id: usuario.id, email: usuario.email } });
+}
+
+app.post("/api/auth/cadastro", async (req, res) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const senha = req.body?.senha;
+    if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) {
+        return res.status(400).json({ erro: "Informe um e-mail válido." });
+    }
+    if (typeof senha !== "string" || senha.length < 8 || Buffer.byteLength(senha, "utf8") > 72) {
+        return res.status(400).json({ erro: "A senha deve ter entre 8 e 72 caracteres." });
+    }
+    try {
+        if (database.buscarUsuarioPorEmail(email)) {
+            return res.status(409).json({ erro: "Este e-mail já possui cadastro." });
+        }
+        const usuario = database.criarUsuario(email, await bcrypt.hash(senha, 12));
+        return emitirSessao(req, res, usuario);
+    } catch (erro) {
+        if (erro.code === "SQLITE_CONSTRAINT_UNIQUE") {
+            return res.status(409).json({ erro: "Este e-mail já possui cadastro." });
+        }
+        console.error("Erro ao cadastrar usuário:", erro);
+        return res.status(500).json({ erro: "Não foi possível concluir o cadastro." });
+    }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const senha = req.body?.senha;
+    if (typeof senha !== "string") return res.status(400).json({ erro: "Informe e-mail e senha." });
+    try {
+        const usuario = database.buscarUsuarioPorEmail(email);
+        if (!usuario || !(await bcrypt.compare(senha, usuario.senhaHash))) {
+            return res.status(401).json({ erro: "E-mail ou senha incorretos." });
+        }
+        return emitirSessao(req, res, usuario);
+    } catch (erro) {
+        console.error("Erro ao autenticar usuário:", erro);
+        return res.status(500).json({ erro: "Não foi possível iniciar a sessão." });
+    }
+});
+
+app.get("/api/auth/me", autenticar, (req, res) => {
+    return res.json({ usuario: { id: req.usuario.id, email: req.usuario.email } });
+});
+
+app.post("/api/auth/logout", (req, res) => {
+    res.setHeader("Set-Cookie", `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+    return res.json({ sucesso: true });
+});
+
+// ======================================================
 // BOT
 // ======================================================
 
@@ -2004,6 +2095,7 @@ app.get(
 
 app.post(
     "/api/bot",
+    autenticar,
     (req, res) => {
         const pergunta = req.body?.pergunta;
         if (typeof pergunta !== "string" || !pergunta.trim()) {

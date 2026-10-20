@@ -103,6 +103,7 @@ async function enviarMensagem() {
     try {
         const resposta = await fetch("/api/bot", {
             method: "POST",
+            credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ pergunta: texto })
         });
